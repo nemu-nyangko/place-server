@@ -2,7 +2,7 @@
 
 ## 상태
 
-`done`
+`reverted` — Hugging Face 연동 제거됨. 다른 AI 모델로 재구현 예정 (후속 작업 필요)
 
 ## 목표
 
