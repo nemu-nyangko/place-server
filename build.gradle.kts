@@ -39,6 +39,7 @@ dependencies {
     testImplementation("it.ozimov:embedded-redis:0.7.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
+    implementation("org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation(kotlin("stdlib-jdk8"))
