@@ -9,6 +9,7 @@ import org.springframework.context.event.EventListener
 import org.springframework.data.redis.core.ReactiveRedisTemplate
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
 import org.springframework.stereotype.Service
+import reactor.core.publisher.Flux
 import java.nio.ByteBuffer
 
 @Service
@@ -42,6 +43,35 @@ class CanvasService(
 
     suspend fun getCanvas(): ByteArray? {
         return redisTemplate.opsForValue().get(CANVAS_KEY).awaitSingleOrNull()
+    }
+
+    suspend fun getRegion(x: Int, y: Int, width: Int, height: Int): ByteArray {
+        val canvas = redisTemplate.opsForValue().get(CANVAS_KEY).awaitSingleOrNull()
+            ?: return ByteArray(width * height)
+        val result = ByteArray(width * height)
+        for (row in 0 until height) {
+            val srcOffset = (y + row) * WIDTH + x
+            canvas.copyInto(result, row * width, srcOffset, srcOffset + width)
+        }
+        return result
+    }
+
+    suspend fun updateRegion(x: Int, y: Int, width: Int, height: Int, pixels: ByteArray, userId: String) {
+        redisTemplate.execute { conn ->
+            Flux.range(0, height).flatMap { row ->
+                val offset = ((y + row).toLong() * WIDTH) + x
+                val rowData = pixels.copyOfRange(row * width, (row + 1) * width)
+                conn.stringCommands().setRange(
+                    ByteBuffer.wrap(CANVAS_KEY.toByteArray()),
+                    ByteBuffer.wrap(rowData),
+                    offset
+                )
+            }
+        }.collectList().awaitSingle()
+
+        val pixelsList = pixels.joinToString(",") { (it.toInt() and 0xFF).toString() }
+        val message = """{"type":"REGION_UPDATE","x":$x,"y":$y,"width":$width,"height":$height,"pixels":[$pixelsList],"userId":"$userId"}"""
+        stringRedisTemplate.convertAndSend(CANVAS_CHANNEL, message).awaitSingleOrNull()
     }
 
     @EventListener(ApplicationReadyEvent::class)

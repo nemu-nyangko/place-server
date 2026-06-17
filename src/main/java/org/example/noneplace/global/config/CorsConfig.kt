@@ -1,0 +1,22 @@
+package org.example.noneplace.global.config
+
+import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.context.annotation.Configuration
+import org.springframework.web.reactive.config.CorsRegistry
+import org.springframework.web.reactive.config.WebFluxConfigurer
+
+@ConfigurationProperties(prefix = "cors")
+@Configuration
+class CorsConfig(
+    var allowedOrigins: List<String> = emptyList()
+) : WebFluxConfigurer {
+
+    override fun addCorsMappings(registry: CorsRegistry) {
+        registry.addMapping("/**")
+            .allowedOrigins(*allowedOrigins.toTypedArray())
+            .allowedMethods("GET", "POST", "OPTIONS")
+            .allowedHeaders("Content-Type", "X-User-Id")
+            .exposedHeaders("X-User-Id")
+            .maxAge(3600)
+    }
+}

@@ -11,8 +11,11 @@ class CooldownService(
     private val redisTemplate: ReactiveRedisTemplate<String, ByteArray>
 ) {
 
-    @Value("\${canvas.cooldown-seconds:300}")
-    private var cooldownSeconds: Long = 300
+    @Value("\${canvas.cooldown-seconds:30}")
+    private var cooldownSeconds: Long = 30
+
+    @Value("\${canvas.ai-retouch-cooldown-seconds:300}")
+    private var aiRetouchCooldownSeconds: Long = 300
 
     private fun cooldownKey(userId: String) = "cooldown:$userId"
 
@@ -20,9 +23,16 @@ class CooldownService(
         val ttl = redisTemplate.getExpire(cooldownKey(userId)).awaitSingleOrNull() ?: return null
         return if (ttl.seconds > 0) ttl.seconds else null
     }
+
     suspend fun setCooldown(userId: String) {
         redisTemplate.opsForValue()
             .set(cooldownKey(userId), byteArrayOf(1), Duration.ofSeconds(cooldownSeconds))
+            .awaitSingleOrNull()
+    }
+
+    suspend fun setAiRetouchCooldown(userId: String) {
+        redisTemplate.opsForValue()
+            .set(cooldownKey(userId), byteArrayOf(1), Duration.ofSeconds(aiRetouchCooldownSeconds))
             .awaitSingleOrNull()
     }
 }
