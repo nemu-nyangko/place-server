@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.web.reactive.function.client.WebClient
+import org.springframework.web.reactive.function.client.awaitBody
 
 @Service
 class GeminiService(
@@ -20,7 +21,17 @@ class GeminiService(
     private lateinit var baseUrl: String
 
     suspend fun chat(prompt: String): String {
-        TODO("Gemini Interactions API 호출 구현 예정")
+        val response = webClient.post()
+            .uri("$baseUrl/interactions")
+            .header("x-goog-api-key", apiKey)
+            .bodyValue(InteractionRequest(model = model, input = prompt))
+            .retrieve()
+            .awaitBody<InteractionResponse>()
+
+        return response.steps
+            .flatMap { it.content }
+            .filter { it.type == "text" }
+            .joinToString("") { it.text }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
