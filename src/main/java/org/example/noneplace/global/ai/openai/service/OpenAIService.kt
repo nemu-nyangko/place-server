@@ -1,5 +1,6 @@
 package org.example.noneplace.global.ai.openai.service
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.web.reactive.function.client.WebClient
@@ -21,4 +22,26 @@ class OpenAIService(
     suspend fun chat(prompt: String): String {
         TODO("OpenAI Chat Completions API 호출 구현 예정")
     }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    data class ChatRequest(
+        val model: String,
+        val messages: List<Message>
+    )
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    data class Message(
+        val role: String,
+        val content: String
+    )
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    data class ChatResponse(
+        val choices: List<Choice> = emptyList()
+    )
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    data class Choice(
+        val message: Message = Message("", "")
+    )
 }
