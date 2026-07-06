@@ -24,6 +24,10 @@
 - `AIRetouchService` 인터페이스 분리 및 스텁 구현체 추가
 - `SPEC.md`, `CLAUDE.md`, `AGENTS.md`, `docs/` 문서 정비
 
+### 2026-06 (Hugging Face 제거)
+- `HuggingFaceService`, `HuggingFaceAIRetouchService`, `spring.ai.huggingface` 설정 삭제
+- 다른 AI 모델로 교체할 예정이라 우선 `StubAIRetouchService`에 `@Service`를 복원해 기본 구현체로 되돌림
+
 ### 2026-06
 - Task 6 완료: SpringDoc OpenAPI 2.8.3 추가, 전체 5개 엔드포인트 및 DTO에 어노테이션 적용
 - `application-prod.yml`에 `springdoc.api-docs.enabled: false` 설정으로 prod 배포 시 Swagger 비노출
