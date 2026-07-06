@@ -8,10 +8,16 @@
 | 2 | 픽셀 찍기 REST API + 쿨타임 | `done` | |
 | 3 | WebSocket 실시간 브로드캐스트 | `done` | |
 | 4 | AI 리터치 엔드포인트 (스텁) | `done` | `StubAIRetouchService` |
-| 5 | AI 리터치 실제 구현 | `reverted` | Hugging Face Qwen3-4B 연동 제거, 다른 AI 모델로 재구현 예정. `StubAIRetouchService`로 복귀 |
+| 5 | AI 리터치 실제 구현 | `done` | OpenAI(gpt-4o-mini) 연동, WebClient 사용. Gemini 구현은 대체 구현체로 보류 |
 | 6 | Swagger(OpenAPI) 문서 추가 | `done` | 개발 환경 전용, `application-prod.yml`로 비활성화 |
 
 ## 작업 로그
+
+### 2026-07
+- Task 5 재구현: 문서상 완료로 표시되어 있었으나 `HuggingFaceService`가 실제로는 존재하지 않아 빌드가 깨져 있던 상태를 발견
+- `HuggingFaceAIRetouchService`를 제거하고 `GeminiService`(WebClient, Gemini REST API) + `GeminiAIRetouchService`로 교체했으나, 제공된 Gemini API 키가 프로젝트 권한 문제(403 `PERMISSION_DENIED`)로 생성 요청이 막혀 있는 것을 확인
+- 최종적으로 `OpenAIService`(WebClient, `/v1/chat/completions`) + `OpenAIAIRetouchService`(`@Primary`)로 전환. `GeminiAIRetouchService`는 `@Primary` 제거 후 대체 구현체로 보류(파일 유지)
+- `application.yml`에 `openai.api-key`(`OPENAI_API_KEY` 환경변수), `openai.model`, `openai.base-url` 추가. 단, 제공된 OpenAI 키는 결제/쿼터 미설정으로 429 `insufficient_quota` 상태 — 결제 연결 필요
 
 ### 2025-05
 - 프로젝트 초기 커밋: Spring Boot 3 + WebFlux + Redis 기반 픽셀 캔버스 구현
