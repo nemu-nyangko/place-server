@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.web.reactive.function.client.WebClient
+import org.springframework.web.reactive.function.client.awaitBody
 
 @Service
 class OpenAIService(
@@ -20,7 +21,14 @@ class OpenAIService(
     private lateinit var baseUrl: String
 
     suspend fun chat(prompt: String): String {
-        TODO("OpenAI Chat Completions API 호출 구현 예정")
+        val response = webClient.post()
+            .uri("$baseUrl/chat/completions")
+            .header("Authorization", "Bearer $apiKey")
+            .bodyValue(ChatRequest(model = model, messages = listOf(Message(role = "user", content = prompt))))
+            .retrieve()
+            .awaitBody<ChatResponse>()
+
+        return response.choices.firstOrNull()?.message?.content ?: ""
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
