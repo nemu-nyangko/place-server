@@ -13,6 +13,10 @@
 
 ## 작업 로그
 
+### 2026-07
+- Task 5 재구현: 문서상 완료로 표시되어 있었으나 `HuggingFaceService`가 실제로는 존재하지 않아 빌드가 깨져 있던 상태를 발견
+- `HuggingFaceAIRetouchService`를 제거하고 `GeminiService`(WebClient, Gemini REST API) + `GeminiAIRetouchService`로 교체
+
 ### 2025-05
 - 프로젝트 초기 커밋: Spring Boot 3 + WebFlux + Redis 기반 픽셀 캔버스 구현
 - `AIRetouchService` 인터페이스 분리 및 스텁 구현체 추가
