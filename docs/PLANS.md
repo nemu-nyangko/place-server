@@ -8,7 +8,7 @@
 | 2 | 픽셀 찍기 REST API + 쿨타임 | `done` | |
 | 3 | WebSocket 실시간 브로드캐스트 | `done` | |
 | 4 | AI 리터치 엔드포인트 (스텁) | `done` | `StubAIRetouchService` |
-| 5 | AI 리터치 실제 구현 | `done` | Hugging Face Qwen3-4B, WebClient 연동 |
+| 5 | AI 리터치 실제 구현 | `done` | Google Gemini(gemini-3.5-flash), WebClient 연동 |
 | 6 | Swagger(OpenAPI) 문서 추가 | `done` | 개발 환경 전용, `application-prod.yml`로 비활성화 |
 
 ## 작업 로그
