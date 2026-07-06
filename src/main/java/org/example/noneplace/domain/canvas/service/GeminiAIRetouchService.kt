@@ -1,10 +1,8 @@
 package org.example.noneplace.domain.canvas.service
 
 import org.example.noneplace.global.ai.gemini.service.GeminiService
-import org.springframework.context.annotation.Primary
 import org.springframework.stereotype.Service
 
-@Primary
 @Service
 class GeminiAIRetouchService(
     private val geminiService: GeminiService
