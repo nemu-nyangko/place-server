@@ -1,5 +1,6 @@
 package org.example.noneplace.global.ai.gemini.service
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.web.reactive.function.client.WebClient
@@ -21,4 +22,27 @@ class GeminiService(
     suspend fun chat(prompt: String): String {
         TODO("Gemini Interactions API 호출 구현 예정")
     }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    data class InteractionRequest(
+        val model: String,
+        val input: String
+    )
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    data class InteractionResponse(
+        val steps: List<Step> = emptyList()
+    )
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    data class Step(
+        val type: String = "",
+        val content: List<Content> = emptyList()
+    )
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    data class Content(
+        val type: String = "",
+        val text: String = ""
+    )
 }
