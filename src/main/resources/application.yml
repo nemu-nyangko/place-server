@@ -1,1 +1,8 @@
-spring.application.name=NonePlace
+spring:
+  application:
+    name: NonePlace
+
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+  model: gemini-3.5-flash
+  base-url: https://generativelanguage.googleapis.com/v1beta
