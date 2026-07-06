@@ -6,3 +6,8 @@ gemini:
   api-key: ${GEMINI_API_KEY:}
   model: gemini-3.5-flash
   base-url: https://generativelanguage.googleapis.com/v1beta
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  model: gpt-4o-mini
+  base-url: https://api.openai.com/v1
