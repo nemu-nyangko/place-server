@@ -1,8 +1,10 @@
 package org.example.noneplace.domain.canvas.service
 
 import org.example.noneplace.global.ai.openai.service.OpenAIService
+import org.springframework.context.annotation.Primary
 import org.springframework.stereotype.Service
 
+@Primary
 @Service
 class OpenAIAIRetouchService(
     private val openAIService: OpenAIService
