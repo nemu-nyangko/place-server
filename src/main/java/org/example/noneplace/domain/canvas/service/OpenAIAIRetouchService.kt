@@ -1,13 +1,13 @@
 package org.example.noneplace.domain.canvas.service
 
-import org.example.noneplace.global.ai.hugging_face.sevice.HuggingFaceService
+import org.example.noneplace.global.ai.openai.service.OpenAIService
 import org.springframework.context.annotation.Primary
 import org.springframework.stereotype.Service
 
 @Primary
 @Service
-class HuggingFaceAIRetouchService(
-    private val huggingFaceService: HuggingFaceService
+class OpenAIAIRetouchService(
+    private val openAIService: OpenAIService
 ) : AIRetouchService {
 
     override suspend fun retouch(x: Int, y: Int, width: Int, height: Int, currentPixels: ByteArray, prompt: String): ByteArray {
@@ -18,7 +18,7 @@ class HuggingFaceAIRetouchService(
             append("[$pixelList]\n\n")
             append("Reply with ONLY ${width * height} comma-separated integers (0-15), nothing else.")
         }
-        val response = huggingFaceService.chat(fullPrompt)
+        val response = openAIService.chat(fullPrompt)
         return parsePixelResponse(response, currentPixels, width * height)
     }
 

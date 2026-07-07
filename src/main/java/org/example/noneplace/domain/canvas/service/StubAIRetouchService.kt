@@ -1,5 +1,8 @@
 package org.example.noneplace.domain.canvas.service
 
+import org.springframework.stereotype.Service
+
+@Service
 class StubAIRetouchService : AIRetouchService {
 
     override suspend fun retouch(x: Int, y: Int, width: Int, height: Int, currentPixels: ByteArray, prompt: String): ByteArray {
