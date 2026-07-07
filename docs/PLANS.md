@@ -13,6 +13,11 @@
 
 ## 작업 로그
 
+### 2026-07 (2)
+- Gemini 잔재 제거: `GeminiAIRetouchService`, `GeminiService`(및 `global/ai/gemini` 패키지), `application.yml`의 `gemini.*` 설정, `.env`의 `GEMINI_API_KEY` 삭제
+- OpenAI 연동 재확인: 설정된 `OPENAI_API_KEY`로 `/v1/chat/completions`(gpt-4o-mini) 실호출 결과 200 정상 응답 — 과거 기록된 429 quota 문제는 해소됨
+- `AIRetouchService` 구현체는 `StubAIRetouchService` / `OpenAIAIRetouchService`(`@Primary`) 두 개만 남음
+
 ### 2026-07
 - Task 5 재구현: 문서상 완료로 표시되어 있었으나 `HuggingFaceService`가 실제로는 존재하지 않아 빌드가 깨져 있던 상태를 발견
 - `HuggingFaceAIRetouchService`를 제거하고 `GeminiService`(WebClient, Gemini REST API) + `GeminiAIRetouchService`로 교체했으나, 제공된 Gemini API 키가 프로젝트 권한 문제(403 `PERMISSION_DENIED`)로 생성 요청이 막혀 있는 것을 확인
