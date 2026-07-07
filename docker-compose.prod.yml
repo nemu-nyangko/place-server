@@ -1,0 +1,33 @@
+# 서버(원격 VPS)에서 실행하는 배포용 compose 파일.
+# CD 워크플로가 SSH로 접속해 `docker compose -f docker-compose.prod.yml pull && up -d`를 실행한다.
+services:
+  app:
+    image: ghcr.io/nemu-nyangko/place-server:latest
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # application.yml의 기본 redis host(127.0.0.1)를 compose 네트워크상의 redis 서비스로 override
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      # 서버 셸 환경변수 OPENAI_API_KEY를 그대로 주입 (없으면 빈 값)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis-data:
