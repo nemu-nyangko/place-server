@@ -1,0 +1,12 @@
+.git
+.github
+.gradle
+.kotlin
+.idea
+build/
+*.log
+Tasks/
+docs/
+.claude/
+HELP.md
+SPEC.md
