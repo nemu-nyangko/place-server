@@ -6,33 +6,28 @@ import org.springframework.data.redis.core.ReactiveRedisTemplate
 import org.springframework.stereotype.Service
 import java.time.Duration
 
+/**
+ * AI 리터치 쿨타임 관리 서비스.
+ * 픽셀 그리기는 쿨타임이 아닌 스톡(충전) 방식으로 전환되어 [PixelStockService] 가 담당한다.
+ */
 @Service
 class CooldownService(
     private val redisTemplate: ReactiveRedisTemplate<String, ByteArray>
 ) {
 
-    @Value("\${canvas.cooldown-seconds:30}")
-    private var cooldownSeconds: Long = 30
-
     @Value("\${canvas.ai-retouch-cooldown-seconds:300}")
     private var aiRetouchCooldownSeconds: Long = 300
 
-    private fun cooldownKey(userId: String) = "cooldown:$userId"
+    private fun aiRetouchCooldownKey(userId: String) = "ai-retouch-cooldown:$userId"
 
-    suspend fun getRemainingCooldown(userId: String): Long? {
-        val ttl = redisTemplate.getExpire(cooldownKey(userId)).awaitSingleOrNull() ?: return null
+    suspend fun getRemainingAiRetouchCooldown(userId: String): Long? {
+        val ttl = redisTemplate.getExpire(aiRetouchCooldownKey(userId)).awaitSingleOrNull() ?: return null
         return if (ttl.seconds > 0) ttl.seconds else null
-    }
-
-    suspend fun setCooldown(userId: String) {
-        redisTemplate.opsForValue()
-            .set(cooldownKey(userId), byteArrayOf(1), Duration.ofSeconds(cooldownSeconds))
-            .awaitSingleOrNull()
     }
 
     suspend fun setAiRetouchCooldown(userId: String) {
         redisTemplate.opsForValue()
-            .set(cooldownKey(userId), byteArrayOf(1), Duration.ofSeconds(aiRetouchCooldownSeconds))
+            .set(aiRetouchCooldownKey(userId), byteArrayOf(1), Duration.ofSeconds(aiRetouchCooldownSeconds))
             .awaitSingleOrNull()
     }
 }

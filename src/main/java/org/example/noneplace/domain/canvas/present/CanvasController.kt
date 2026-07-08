@@ -12,6 +12,7 @@ import org.example.noneplace.domain.canvas.present.dto.RetouchRequest
 import org.example.noneplace.domain.canvas.service.AIRetouchService
 import org.example.noneplace.domain.canvas.service.CanvasService
 import org.example.noneplace.domain.canvas.service.CooldownService
+import org.example.noneplace.domain.canvas.service.PixelStockService
 import org.example.noneplace.domain.user.service.UserService
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -24,13 +25,14 @@ import org.springframework.web.bind.annotation.*
 class CanvasController(
     private val canvasService: CanvasService,
     private val cooldownService: CooldownService,
+    private val pixelStockService: PixelStockService,
     private val userService: UserService,
     private val aiRetouchService: AIRetouchService
 ) {
 
-    @Operation(summary = "쿨타임 조회", description = "현재 사용자의 픽셀 그리기 쿨타임 잔여 시간을 반환합니다.")
+    @Operation(summary = "픽셀 스톡 조회", description = "현재 사용자의 픽셀 스톡(충전) 상태를 반환합니다. 30초마다 1개씩, 최대 20개까지 충전됩니다.")
     @ApiResponses(
-        ApiResponse(responseCode = "200", description = "쿨타임 정보 반환 (active, remainingSeconds, userId)")
+        ApiResponse(responseCode = "200", description = "스톡 정보 반환 (stock, maxStock, secondsUntilNextCharge, userId)")
     )
     @GetMapping("/cooldown")
     suspend fun getCooldown(
@@ -38,10 +40,17 @@ class CanvasController(
         @RequestHeader("X-User-Id", required = false) rawUserId: String?
     ): ResponseEntity<Map<String, Any>> {
         val userId = userService.resolveUserId(rawUserId)
-        val remaining = cooldownService.getRemainingCooldown(userId)
+        val stock = pixelStockService.getStock(userId)
         return ResponseEntity.ok()
             .header("X-User-Id", userId)
-            .body(mapOf("active" to (remaining != null), "remainingSeconds" to (remaining ?: 0L), "userId" to userId))
+            .body(
+                mapOf(
+                    "stock" to stock.stock,
+                    "maxStock" to stock.maxStock,
+                    "secondsUntilNextCharge" to stock.secondsUntilNextCharge,
+                    "userId" to userId
+                )
+            )
     }
 
     @Operation(summary = "캔버스 다운로드", description = "512×512 픽셀 캔버스를 바이너리(octet-stream)로 반환합니다. 각 바이트는 색상 인덱스(0~15)입니다.")
@@ -63,11 +72,11 @@ class CanvasController(
         return ResponseEntity.ok(Palette.COLORS.toList())
     }
 
-    @Operation(summary = "픽셀 그리기", description = "지정한 좌표에 색상을 찍습니다. 쿨타임(기본 5분) 동안 재요청이 제한됩니다.")
+    @Operation(summary = "픽셀 그리기", description = "지정한 좌표에 색상을 찍습니다. 픽셀 스톡을 1개 소모하며, 스톡이 없으면 429를 반환합니다.")
     @ApiResponses(
-        ApiResponse(responseCode = "200", description = "성공 (status, offset, userId)"),
+        ApiResponse(responseCode = "200", description = "성공 (status, offset, stock, maxStock, secondsUntilNextCharge, userId)"),
         ApiResponse(responseCode = "400", description = "잘못된 좌표 또는 색상 인덱스"),
-        ApiResponse(responseCode = "429", description = "쿨타임 중 (remainingSeconds 포함)")
+        ApiResponse(responseCode = "429", description = "스톡 부족 (stock, secondsUntilNextCharge 포함)")
     )
     @PostMapping("/pixel")
     suspend fun drawPixel(
@@ -86,20 +95,38 @@ class CanvasController(
             return ResponseEntity.badRequest().body(mapOf("error" to "Invalid color index"))
         }
 
-        val remaining = cooldownService.getRemainingCooldown(userId)
-        if (remaining != null) {
+        val stock = pixelStockService.consume(userId)
+        if (!stock.consumed) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .body(mapOf("error" to "Cooldown active", "remainingSeconds" to remaining, "userId" to userId))
+                .header("X-User-Id", userId)
+                .body(
+                    mapOf(
+                        "error" to "No stock",
+                        "stock" to stock.stock,
+                        "secondsUntilNextCharge" to stock.secondsUntilNextCharge,
+                        "userId" to userId
+                    )
+                )
         }
 
         val result = canvasService.updatePixel(request.x, request.y, request.color, userId)
 
         return if (result != null) {
-            cooldownService.setCooldown(userId)
             ResponseEntity.ok()
                 .header("X-User-Id", userId)
-                .body(mapOf("status" to "success", "offset" to result, "userId" to userId))
+                .body(
+                    mapOf(
+                        "status" to "success",
+                        "offset" to result,
+                        "stock" to stock.stock,
+                        "maxStock" to stock.maxStock,
+                        "secondsUntilNextCharge" to stock.secondsUntilNextCharge,
+                        "userId" to userId
+                    )
+                )
         } else {
+            // 캔버스 쓰기 실패: 차감한 스톡을 best-effort 로 환불
+            pixelStockService.refund(userId)
             ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build()
         }
     }
@@ -128,7 +155,7 @@ class CanvasController(
                 .body(mapOf("error" to "Region exceeds canvas bounds"))
         }
 
-        val remaining = cooldownService.getRemainingCooldown(userId)
+        val remaining = cooldownService.getRemainingAiRetouchCooldown(userId)
         if (remaining != null) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .body(mapOf("error" to "Cooldown active", "remainingSeconds" to remaining, "userId" to userId))
