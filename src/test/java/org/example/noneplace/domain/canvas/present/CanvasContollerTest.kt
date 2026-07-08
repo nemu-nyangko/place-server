@@ -58,7 +58,7 @@ class CanvasControllerTest {
     }
 
     @Test
-    fun `픽셀 찍기 성공 - userId 반환 확인`() {
+    fun `픽셀 찍기 성공 - userId 와 스톡 반환 확인`() {
         val request = mapOf("x" to 10, "y" to 10, "color" to 1)
 
         webTestClient.post()
@@ -71,6 +71,8 @@ class CanvasControllerTest {
             .expectBody()
             .jsonPath("$.status").isEqualTo("success")
             .jsonPath("$.userId").isEqualTo(userId)
+            .jsonPath("$.stock").isEqualTo(19)   // 20개 중 1개 소모
+            .jsonPath("$.maxStock").isEqualTo(20)
     }
 
     @Test
@@ -89,19 +91,21 @@ class CanvasControllerTest {
     }
 
     @Test
-    fun `쿨타임 중 재요청 시 429 반환`() {
+    fun `스톡 20개를 모두 소진하면 429 반환`() {
         val request = mapOf("x" to 30, "y" to 30, "color" to 3)
 
-        // 첫 번째 요청 - 성공
-        webTestClient.post()
-            .uri("/api/canvas/pixel")
-            .header("X-User-Id", userId)
-            .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(request)
-            .exchange()
-            .expectStatus().isOk
+        // 20회까지는 성공
+        repeat(20) {
+            webTestClient.post()
+                .uri("/api/canvas/pixel")
+                .header("X-User-Id", userId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .exchange()
+                .expectStatus().isOk
+        }
 
-        // 두 번째 요청 - 쿨타임으로 429
+        // 21번째 요청 - 스톡 부족으로 429
         webTestClient.post()
             .uri("/api/canvas/pixel")
             .header("X-User-Id", userId)
@@ -110,8 +114,9 @@ class CanvasControllerTest {
             .exchange()
             .expectStatus().isEqualTo(429)
             .expectBody()
-            .jsonPath("$.error").isEqualTo("Cooldown active")
-            .jsonPath("$.remainingSeconds").exists()
+            .jsonPath("$.error").isEqualTo("No stock")
+            .jsonPath("$.stock").isEqualTo(0)
+            .jsonPath("$.secondsUntilNextCharge").exists()
     }
 
     @Test
@@ -145,20 +150,21 @@ class CanvasControllerTest {
     }
 
     @Test
-    fun `쿨타임 없을 때 active=false 반환`() {
+    fun `신규 유저 스톡 조회 시 가득 찬 20개 반환`() {
         webTestClient.get()
             .uri("/api/canvas/cooldown")
             .header("X-User-Id", userId)
             .exchange()
             .expectStatus().isOk
             .expectBody()
-            .jsonPath("$.active").isEqualTo(false)
-            .jsonPath("$.remainingSeconds").isEqualTo(0)
+            .jsonPath("$.stock").isEqualTo(20)
+            .jsonPath("$.maxStock").isEqualTo(20)
+            .jsonPath("$.secondsUntilNextCharge").isEqualTo(0)
             .jsonPath("$.userId").isEqualTo(userId)
     }
 
     @Test
-    fun `픽셀 찍은 후 쿨타임 active=true 반환`() {
+    fun `픽셀 찍은 후 스톡이 19개로 감소`() {
         val request = mapOf("x" to 50, "y" to 50, "color" to 1)
 
         webTestClient.post()
@@ -175,8 +181,8 @@ class CanvasControllerTest {
             .exchange()
             .expectStatus().isOk
             .expectBody()
-            .jsonPath("$.active").isEqualTo(true)
-            .jsonPath("$.remainingSeconds").exists()
+            .jsonPath("$.stock").isEqualTo(19)
+            .jsonPath("$.maxStock").isEqualTo(20)
             .jsonPath("$.userId").isEqualTo(userId)
     }
 }

@@ -1,8 +1,28 @@
 spring:
   application:
     name: NonePlace
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+
+canvas:
+  pixel-regen-seconds: 30            # 픽셀 스톡 충전 간격 (초)
+  pixel-max-stock: 20                # 최대 스톡 개수
+  ai-retouch-cooldown-seconds: 900   # AI 리터칭 쿨타임 (초), 기본 15분
 
 openai:
   api-key: ${OPENAI_API_KEY:}
   model: gpt-4o-mini
   base-url: https://api.openai.com/v1
+
+cors:
+  allowed-origins:
+    - "http://localhost:3000"
+    - "http://localhost:5173"
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
