@@ -31,7 +31,13 @@ QR로 들어오면 바로 게스트로 참여할 수 있고, DataGSM으로 로�
 - **관리자**: `ADMIN_IDS`(DataGSM 계정 id, 쉼표 구분)에 있는 회원. 이름은 겹칠 수 있어 id로만 지정합니다. 토큰이 아니라 요청마다 서버 설정으로 판정하므로, 설정을 바꾸고 재시작하면 바로 반영됩니다(재로그인 불필요).
   - 픽셀 무제한: 스톡을 읽지도 줄이지도 않습니다. 편집 모드로 한 번에 최대 1000칸.
   - `/api/auth/me`에 `admin: true`, 스톡 응답에 `unlimited: true`(이때 `stock`/`maxStock`은 한 번에 찍을 수 있는 칸 수).
-  - 현재 관리자: 없음 (본인 확인 후 지정. 사이트에서 이름을 누르면 계정 번호가 보임)
+  - 고정 관리자(ADMIN_IDS): 146. 사이트에서 해제할 수 없습니다.
+  - 지정 관리자: 관리자가 사이트의 **관리자 메뉴**(이름 → 관리자 메뉴)에서 지정/해제. Redis Set `admins`에 저장되고 서버가 5초마다 다시 읽으므로 재시작 없이 반영됩니다. 한 번이라도 로그인한 계정만 지정할 수 있습니다(번호 오타 방지).
+  - 관리자 API (관리자 토큰 필요, 아니면 403):
+    - `GET /api/admin/accounts`: 로그인한 계정 목록(최근 접속 순). 이름, 학년/반/번호, 계정 번호, 마지막 접속, `online`(2분 안에 접속), `admin`, `fixedAdmin`.
+    - `PUT /api/admin/admins/{계정번호}`: 관리자 지정 (로그인한 적 없는 번호는 404).
+    - `DELETE /api/admin/admins/{계정번호}`: 관리자 해제 (고정 관리자는 409).
+  - 접속 기록: 회원이 `/api/auth/me`를 부를 때(클라이언트가 1분마다) Redis `accounts:seen`(ZSET)·`accounts:info`(HASH)에 남깁니다. 30일 지난 기록은 정리합니다.
 - 게스트 토큰 남발을 막기 위해 IP(`X-Forwarded-For` 첫 값) 단위 제한이 있습니다.
   - 게스트 토큰 발급: IP당 분당 300회 (`auth.guest-issue-per-ip-per-minute`)
   - 게스트 픽셀: IP당 분당 1200개 (`canvas.guest-pixels-per-ip-per-minute`)

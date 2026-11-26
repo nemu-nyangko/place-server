@@ -1,6 +1,6 @@
 package org.example.noneplace.domain.user.service
 
-import org.example.noneplace.domain.auth.config.AuthProperties
+import org.example.noneplace.domain.admin.service.AdminService
 import org.example.noneplace.domain.auth.service.AuthTokenService
 import org.example.noneplace.domain.user.model.PlaceUser
 import org.springframework.stereotype.Service
@@ -12,10 +12,8 @@ import org.springframework.stereotype.Service
 @Service
 class UserService(
     private val authTokenService: AuthTokenService,
-    authProperties: AuthProperties,
+    private val adminService: AdminService,
 ) {
-    /** 관리자 DataGSM 계정 id. 이름은 겹칠 수 있어 id 로만 지정한다 */
-    private val adminIds: Set<String> = authProperties.adminIds.map { it.trim() }.filter { it.isNotEmpty() }.toSet()
 
     fun resolve(authorizationHeader: String?): PlaceUser? {
         val token = authorizationHeader
@@ -23,7 +21,7 @@ class UserService(
             ?.substring(BEARER_PREFIX.length)
             ?.trim()
         val user = authTokenService.verify(token) ?: return null
-        return if (user.isMember && user.id.removePrefix("m:") in adminIds) user.copy(admin = true) else user
+        return if (user.isMember && adminService.isAdmin(user.id.removePrefix("m:"))) user.copy(admin = true) else user
     }
 
     companion object {

@@ -2,6 +2,7 @@ package org.example.noneplace.domain.auth.present
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import org.example.noneplace.domain.admin.service.AccountDirectory
 import org.example.noneplace.domain.canvas.service.AIRetouchService
 import org.example.noneplace.domain.auth.config.AuthProperties
 import org.example.noneplace.domain.auth.service.AuthTokenService
@@ -30,6 +31,7 @@ class AuthController(
     private val rateLimitService: RateLimitService,
     private val authProperties: AuthProperties,
     private val aiRetouchService: AIRetouchService?,
+    private val accountDirectory: AccountDirectory,
 ) {
 
     @Operation(summary = "게스트 토큰 발급", description = "QR 로 처음 들어온 사용자에게 바로 픽셀을 찍을 수 있는 게스트 토큰을 발급합니다.")
@@ -49,6 +51,7 @@ class AuthController(
     suspend fun me(@RequestHeader("Authorization", required = false) authorization: String?): ResponseEntity<Map<String, Any?>> {
         val user = userService.resolve(authorization)
             ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(mapOf("error" to "Unauthorized"))
+        accountDirectory.touch(user)
         val stock = pixelStockService.getStock(user)
         return ResponseEntity.ok(
             mapOf(
@@ -88,6 +91,7 @@ class AuthController(
         }
         return try {
             val user = oAuthService.authenticate(code, pending)
+            accountDirectory.touch(user, force = true)
             redirect(withFragment(pending.returnTo, "token", authTokenService.issueMember(user)))
         } catch (e: DataGsmOAuthService.OAuthException) {
             redirect(withFragment(pending.returnTo, "auth_error", e.message ?: "login_failed"))
