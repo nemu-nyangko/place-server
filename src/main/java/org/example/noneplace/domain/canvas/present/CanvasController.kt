@@ -34,7 +34,8 @@ class CanvasController(
     private val cooldownService: CooldownService,
     private val pixelStockService: PixelStockService,
     private val userService: UserService,
-    private val aiRetouchService: AIRetouchService,
+    /** 실제 AI 가 설정돼 있지 않으면 null → 리터치 503 */
+    private val aiRetouchService: AIRetouchService?,
     private val rateLimitService: RateLimitService,
     private val properties: CanvasProperties,
 ) {
@@ -129,6 +130,7 @@ class CanvasController(
         ApiResponse(responseCode = "400", description = "영역 크기 범위 초과 또는 캔버스 경계 초과"),
         ApiResponse(responseCode = "403", description = "게스트는 사용할 수 없음"),
         ApiResponse(responseCode = "429", description = "쿨타임 중 (remainingSeconds 포함)"),
+        ApiResponse(responseCode = "503", description = "AI 가 설정되지 않음"),
     )
     @PostMapping("/ai-retouch")
     suspend fun aiRetouch(
@@ -139,6 +141,10 @@ class CanvasController(
         if (!user.isMember) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(mapOf("error" to "Login required", "loginRequired" to true))
+        }
+        if (aiRetouchService == null) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(mapOf("error" to "AI retouch unavailable", "aiUnavailable" to true))
         }
         if (request.width !in 8..16 || request.height !in 8..16) {
             return ResponseEntity.badRequest().body(mapOf("error" to "Region size must be between 8 and 16"))
@@ -176,7 +182,7 @@ class CanvasController(
     ): ResponseEntity<Map<String, Any>> {
         val user = userService.resolve(authorization) ?: return unauthorized()
         val remaining = if (user.isMember) cooldownService.getRemainingAiRetouchCooldown(user.id) ?: 0 else 0
-        return ResponseEntity.ok(mapOf("available" to user.isMember, "remainingSeconds" to remaining))
+        return ResponseEntity.ok(mapOf("available" to (user.isMember && aiRetouchService != null), "remainingSeconds" to remaining))
     }
 
     private suspend fun guestIpAllowed(request: ServerHttpRequest): Boolean =

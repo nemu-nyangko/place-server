@@ -14,7 +14,7 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.reactive.server.WebTestClient
 import java.util.zip.GZIPInputStream
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = ["ai.stub-enabled=true"])
 @Import(TestRedisConfig::class)
 @AutoConfigureWebTestClient
 class CanvasControllerTest {

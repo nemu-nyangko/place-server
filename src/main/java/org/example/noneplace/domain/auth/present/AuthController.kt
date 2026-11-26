@@ -2,6 +2,7 @@ package org.example.noneplace.domain.auth.present
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import org.example.noneplace.domain.canvas.service.AIRetouchService
 import org.example.noneplace.domain.auth.config.AuthProperties
 import org.example.noneplace.domain.auth.service.AuthTokenService
 import org.example.noneplace.domain.auth.service.DataGsmOAuthService
@@ -28,6 +29,7 @@ class AuthController(
     private val pixelStockService: PixelStockService,
     private val rateLimitService: RateLimitService,
     private val authProperties: AuthProperties,
+    private val aiRetouchService: AIRetouchService?,
 ) {
 
     @Operation(summary = "게스트 토큰 발급", description = "QR 로 처음 들어온 사용자에게 바로 픽셀을 찍을 수 있는 게스트 토큰을 발급합니다.")
@@ -57,6 +59,7 @@ class AuthController(
                 "classNum" to user.classNum,
                 "number" to user.number,
                 "canAiRetouch" to user.isMember,
+                "aiAvailable" to (aiRetouchService != null),
                 "loginAvailable" to oAuthService.enabled,
             ) + stock.toMap()
         )
