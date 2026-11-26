@@ -4,8 +4,10 @@
 services:
   app:
     networks:
-      - default
-      - proxy
+      default:
+        # 외부(DataGSM, OpenAI)로 나가는 기본 경로는 MTU 를 맞춘 자체 네트워크로
+        gw_priority: 1
+      proxy: {}
 
 networks:
   proxy:
