@@ -17,16 +17,16 @@ class OpenAIAIRetouchService(
         val pixelList = currentPixels.joinToString(",") { (it.toInt() and 0xFF).toString() }
         val fullPrompt = buildString {
             append(prompt)
-            append("\n\nCurrent pixels (${width}x${height} region, color indices 0-15, row-major order):\n")
+            append("\n\nCurrent pixels (${width}x${height} region, color indices 0-255, row-major order; 0-15 are the base palette, 16-255 are custom shades):\n")
             append("[$pixelList]\n\n")
-            append("Reply with ONLY ${width * height} comma-separated integers (0-15), nothing else.")
+            append("Reply with ONLY ${width * height} comma-separated integers (0-255), nothing else. Prefer the base colors 0-15 for new pixels.")
         }
         val response = openAIService.chat(fullPrompt)
         return parsePixelResponse(response, currentPixels, width * height)
     }
 
     private fun parsePixelResponse(response: String, fallback: ByteArray, expected: Int): ByteArray {
-        val numbers = Regex("""\b(1[0-5]|[0-9])\b""")
+        val numbers = Regex("""\b(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\b""")
             .findAll(response)
             .map { it.value.toInt() }
             .toList()

@@ -7,6 +7,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import org.example.noneplace.domain.user.model.PlaceUser
 import org.example.noneplace.domain.user.model.UserType
+import org.example.noneplace.domain.canvas.config.Palette
 import org.example.noneplace.global.redis.config.TestRedisConfig
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
@@ -32,7 +33,7 @@ class CanvasServiceTest {
     /** Pub/Sub 을 거쳐 미러에 반영될 때까지 대기 */
     private suspend fun awaitMirror(x: Int, y: Int, color: Int) = withContext(Dispatchers.Default) {
         repeat(150) {
-            if (mirror.ready && mirror.region(x, y, 1, 1)[0].toInt() == color) return@withContext
+            if (mirror.ready && (mirror.region(x, y, 1, 1)[0].toInt() and 0xFF) == color) return@withContext
             delay(20)
         }
         fail<Unit>("mirror not updated at ($x,$y)")
@@ -83,14 +84,31 @@ class CanvasServiceTest {
     @Test
     fun `영역 업데이트와 픽셀 작성자 기록`() = runTest {
         val user = member()
-        val pixels = ByteArray(64) { (it % 16).toByte() }
+        // 128 이상 확장색이 섞여도 바이트가 깨지지 않아야 한다
+        val pixels = ByteArray(64) { (if (it % 2 == 0) it % 16 else 192 + it).toByte() }
         canvasService.updateRegion(user, 300, 300, 8, 8, pixels)
         val canvas = canvasService.loadCanvasFromRedis()
-        // row 1, col 7 → index 15
-        assertEquals(15, canvas[301 * 512 + 307].toInt())
-        awaitMirror(307, 301, 15)
+        // row 1, col 6 → index 14 / row 1, col 7 → 192 + 15
+        assertEquals(14, canvas[301 * 512 + 306].toInt())
+        assertEquals(207, canvas[301 * 512 + 307].toInt() and 0xFF)
+        awaitMirror(307, 301, 207)
         val info = canvasService.getPixelInfo(307, 301)
         assertEquals("테스트", info?.name)
         assertEquals(true, info?.member)
+    }
+
+    @Test
+    fun `컬러피커 확장색(128 이상)도 그대로 저장되고 미러에 반영`() = runTest {
+        assertTrue(canvasService.placePixel(member(), 11, 21, 231).consumed)
+        assertEquals(231, canvasService.loadCanvasFromRedis()[21 * 512 + 11].toInt() and 0xFF)
+        awaitMirror(11, 21, 231)
+    }
+
+    @Test
+    fun `팔레트는 256색, 기본 16색은 그대로`() {
+        assertEquals(256, Palette.COLORS.size)
+        assertEquals("#009EAA", Palette.COLORS[9].hex)
+        assertEquals(Palette.COLORS.indices.toList(), Palette.COLORS.map { it.index })
+        assertEquals(256, Palette.COLORS.map { it.hex }.size)
     }
 }

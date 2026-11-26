@@ -58,9 +58,9 @@ class CanvasController(
         }
     }
 
-    @Operation(summary = "팔레트 조회", description = "사용 가능한 16가지 색상 팔레트 목록을 반환합니다.")
+    @Operation(summary = "팔레트 조회", description = "256색 팔레트(0~15 기본색, 16~255 컬러피커)를 반환합니다.")
     @GetMapping("/palette")
-    fun getPalette(): ResponseEntity<List<Palette.Color>> = ResponseEntity.ok(Palette.COLORS.toList())
+    fun getPalette(): ResponseEntity<List<Palette.Color>> = ResponseEntity.ok(Palette.COLORS)
 
     @Operation(summary = "픽셀 스톡 조회", description = "현재 사용자의 픽셀 스톡 상태. 게스트/회원 등급에 따라 최대치와 충전 속도가 다릅니다.")
     @GetMapping("/cooldown")
@@ -79,7 +79,7 @@ class CanvasController(
             mapOf(
                 "x" to x,
                 "y" to y,
-                "color" to mirror.region(x, y, 1, 1)[0].toInt(),
+                "color" to (mirror.region(x, y, 1, 1)[0].toInt() and 0xFF),
                 "name" to info?.name,
                 "member" to info?.member,
                 "placedAt" to info?.placedAt,

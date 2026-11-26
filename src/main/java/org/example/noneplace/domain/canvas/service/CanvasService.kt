@@ -33,7 +33,7 @@ class CanvasService(
     data class PixelInfo(val name: String, val member: Boolean, val placedAt: Long)
 
     /** 스톡을 1 소모하며 픽셀을 찍는다. 스톡이 없으면 consumed=false 이고 캔버스는 바뀌지 않는다. */
-    suspend fun placePixel(user: PlaceUser, x: Int, y: Int, color: Byte): PixelStock {
+    suspend fun placePixel(user: PlaceUser, x: Int, y: Int, color: Int): PixelStock {
         require(x in 0 until WIDTH && y in 0 until WIDTH) { "Out of bounds" }
         require(Palette.isValid(color)) { "Invalid color index" }
         val tier = pixelStockService.tierOf(user)
@@ -65,9 +65,8 @@ class CanvasService(
     /** 영역 덮어쓰기(AI 리터치 결과 반영). [pixels] 는 행 우선 순서, 길이 = width*height */
     suspend fun updateRegion(user: PlaceUser, x: Int, y: Int, width: Int, height: Int, pixels: ByteArray) {
         require(pixels.size == width * height) { "Invalid region data" }
-        require(pixels.all { Palette.isValid(it) }) { "Invalid color index" }
-        // 색상 인덱스(0~15)는 1바이트 ASCII 라 문자열 직렬화로 그대로 전달된다
-        val encoded = String(CharArray(pixels.size) { pixels[it].toInt().toChar() })
+        // 색상 인덱스는 0~255 라 UTF-8 문자열로 넘기면 깨진다 → 16진수 2글자씩 인코딩해 Lua 에서 되돌린다
+        val encoded = pixels.joinToString("") { "%02x".format(it.toInt() and 0xFF) }
         stringRedisTemplate.execute(
             regionScript,
             listOf(CANVAS_KEY, OWNER_KEY),
@@ -161,7 +160,7 @@ class CanvasService(
 
         /**
          * KEYS = [canvasKey, ownerKey]
-         * ARGV = [x, y, width, height, pixels(행 우선 바이트 문자열), ownerValue, channel]
+         * ARGV = [x, y, width, height, pixels(행 우선, 픽셀당 16진수 2글자), ownerValue, channel]
          */
         private val REGION_LUA = """
             local x = tonumber(ARGV[1])
@@ -171,12 +170,15 @@ class CanvasService(
             local px = ARGV[5]
             local parts = {}
             for row = 0, h - 1 do
-                local rowStr = string.sub(px, row * w + 1, (row + 1) * w)
-                redis.call('SETRANGE', KEYS[1], (y + row) * 512 + x, rowStr)
+                local bytes = {}
                 for col = 0, w - 1 do
+                    local i = (row * w + col) * 2 + 1
+                    local c = tonumber(string.sub(px, i, i + 1), 16)
+                    bytes[#bytes + 1] = string.char(c)
                     redis.call('HSET', KEYS[2], (y + row) * 512 + x + col, ARGV[6])
-                    parts[#parts + 1] = struct.pack('>HHB', x + col, y + row, string.byte(rowStr, col + 1))
+                    parts[#parts + 1] = struct.pack('>HHB', x + col, y + row, c)
                 end
+                redis.call('SETRANGE', KEYS[1], (y + row) * 512 + x, table.concat(bytes))
             end
             redis.call('PUBLISH', ARGV[7], table.concat(parts))
             return #parts

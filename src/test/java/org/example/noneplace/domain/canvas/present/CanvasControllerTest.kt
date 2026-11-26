@@ -62,7 +62,7 @@ class CanvasControllerTest {
         webTestClient.get().uri("/api/canvas/palette").exchange()
             .expectStatus().isOk
             .expectBody()
-            .jsonPath("$.length()").isEqualTo(16)
+            .jsonPath("$.length()").isEqualTo(256)
             .jsonPath("$[0].hex").isEqualTo("#FFFFFF")
     }
 
@@ -100,7 +100,9 @@ class CanvasControllerTest {
     fun `좌표, 색상 검증`() {
         val token = guestToken()
         draw(token, 512, 0).expectStatus().isBadRequest.expectBody().jsonPath("$.error").isEqualTo("Out of bounds")
-        draw(token, 0, 0, 16).expectStatus().isBadRequest.expectBody().jsonPath("$.error").isEqualTo("Invalid color index")
+        draw(token, 0, 0, 256).expectStatus().isBadRequest.expectBody().jsonPath("$.error").isEqualTo("Invalid color index")
+        draw(token, 0, 0, -1).expectStatus().isBadRequest.expectBody().jsonPath("$.error").isEqualTo("Invalid color index")
+        draw(token, 0, 0, 200).expectStatus().isOk
     }
 
     @Test
