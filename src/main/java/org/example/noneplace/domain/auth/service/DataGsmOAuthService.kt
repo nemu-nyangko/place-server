@@ -13,9 +13,8 @@ import org.slf4j.LoggerFactory
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
-import org.springframework.util.LinkedMultiValueMap
-import org.springframework.web.reactive.function.BodyInserters
 import org.springframework.web.reactive.function.client.WebClient
+import org.springframework.web.reactive.function.client.WebClientResponseException
 import org.springframework.web.reactive.function.client.awaitBody
 import org.springframework.web.util.UriComponentsBuilder
 import java.net.URI
@@ -96,21 +95,26 @@ class DataGsmOAuthService(
 
     /** 인가 코드를 토큰으로 교환하고 사용자 정보를 받아 회원으로 변환 */
     suspend fun authenticate(code: String, pending: PendingLogin): PlaceUser {
-        val form = LinkedMultiValueMap<String, String>().apply {
-            add("grant_type", "authorization_code")
-            add("code", code)
-            add("client_id", dataGsm.clientId)
-            add("client_secret", dataGsm.clientSecret)
-            add("redirect_uri", dataGsm.redirectUri)
-            add("code_verifier", pending.verifier)
-        }
+        // DataGSM 토큰 엔드포인트는 실제로 JSON 본문만 읽는다(폼 전송 시 "grant_type은 필수입니다" 400)
+        val body = mapOf(
+            "grant_type" to "authorization_code",
+            "code" to code,
+            "client_id" to dataGsm.clientId,
+            "client_secret" to dataGsm.clientSecret,
+            "redirect_uri" to dataGsm.redirectUri,
+            "code_verifier" to pending.verifier,
+        )
         val token = try {
             webClient.post()
                 .uri(dataGsm.tokenUrl)
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(BodyInserters.fromFormData(form))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
                 .retrieve()
                 .awaitBody<TokenResponse>()
+        } catch (e: WebClientResponseException) {
+            // DataGSM 오류 본문({error, error_description})에는 비밀값이 없으므로 원인 파악용으로 남긴다
+            log.warn("DataGSM token exchange failed: {} {}", e.statusCode, e.responseBodyAsString.take(500))
+            throw OAuthException("token_exchange_failed")
         } catch (e: Exception) {
             log.warn("DataGSM token exchange failed: {}", e.message)
             throw OAuthException("token_exchange_failed")
@@ -122,6 +126,9 @@ class DataGsmOAuthService(
                 .header("Authorization", "Bearer ${token.accessToken}")
                 .retrieve()
                 .awaitBody<UserInfo>()
+        } catch (e: WebClientResponseException) {
+            log.warn("DataGSM userinfo failed: {} {}", e.statusCode, e.responseBodyAsString.take(500))
+            throw OAuthException("userinfo_failed")
         } catch (e: Exception) {
             log.warn("DataGSM userinfo failed: {}", e.message)
             throw OAuthException("userinfo_failed")

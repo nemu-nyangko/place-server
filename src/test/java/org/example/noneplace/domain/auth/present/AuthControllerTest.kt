@@ -39,6 +39,12 @@ class AuthControllerTest {
                 routes.post("/v1/oauth/token") { req, res ->
                     req.receive().aggregate().asString().flatMap { body ->
                         lastTokenRequestBody = body
+                        // 실제 DataGSM 처럼 JSON 본문만 인식
+                        if (req.requestHeaders().get("Content-Type")?.startsWith("application/json") != true) {
+                            return@flatMap res.status(400).header("Content-Type", "application/json")
+                                .sendString(Mono.just("""{"error":"invalid_request","error_description":"grant_type은 필수입니다."}"""))
+                                .then()
+                        }
                         res.header("Content-Type", "application/json")
                             .sendString(Mono.just("""{"access_token":"fake-access","token_type":"Bearer","expires_in":3600}"""))
                             .then()
@@ -100,8 +106,9 @@ class AuthControllerTest {
         assertEquals(1, user.grade)
 
         // PKCE verifier 와 client secret 을 함께 보냈는지
-        assertTrue(lastTokenRequestBody.contains("code_verifier="))
-        assertTrue(lastTokenRequestBody.contains("client_secret=test-secret"))
+        assertTrue(lastTokenRequestBody.contains("\"code_verifier\":\""))
+        assertTrue(lastTokenRequestBody.contains("\"client_secret\":\"test-secret\""))
+        assertTrue(lastTokenRequestBody.contains("\"grant_type\":\"authorization_code\""))
 
         // state 는 1회용
         val reused = location("/api/auth/datagsm/callback?code=abc&state=$state")
