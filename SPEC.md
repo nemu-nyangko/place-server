@@ -112,6 +112,22 @@ DataGSM 클라이언트 설정: 스코프 `openid datagsm:account_read datagsm:s
 
 스톡 차감, `SETRANGE`, 작성자 기록, `PUBLISH`가 Lua 스크립트 한 번으로 원자 실행됩니다.
 
+### `POST /api/canvas/pixels` (인증 필요, 편집 모드)
+
+같은 색으로 여러 칸을 한 번에 찍습니다. 칸마다 스톡 1개.
+
+```json
+요청 { "pixels": [{ "x": 10, "y": 20 }, { "x": 11, "y": 20 }], "color": 4 }
+200  { "status": "success", "placed": 2, "requested": 2, "stock": 3, "maxStock": 5, "regenSeconds": 60, "secondsUntilNextCharge": 60 }
+400  { "error": "No pixels" | "Duplicate pixels" | "Out of bounds" | "Invalid color index" } | { "error": "Too many pixels", "max": 5 }
+429  { "error": "No stock", ... } | { "error": "Too many guest pixels from this network", "loginRequired": true }
+```
+
+- 한 번에 최대 칸 수 = 등급의 최대 스톡(게스트 5, 회원 30).
+- 스톡이 모자라면 앞에서부터 남은 스톡만큼만 찍고 `placed`로 알려 줍니다(클라이언트는 나머지를 되돌림).
+- 스톡 차감·칸 기록·작성자 기록·PUBLISH(칸들을 이어 붙인 메시지 하나)가 Lua 한 번으로 원자 실행됩니다. `POST /pixel`도 같은 스크립트를 칸 1개로 씁니다.
+- 게스트 IP 제한은 칸 수만큼 차감합니다.
+
 ### `GET /api/canvas/pixel?x=&y=`
 
 해당 칸을 마지막으로 찍은 사람.

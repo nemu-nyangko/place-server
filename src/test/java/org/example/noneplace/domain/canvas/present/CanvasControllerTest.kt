@@ -144,4 +144,35 @@ class CanvasControllerTest {
             .exchange().expectStatus().isBadRequest
             .expectBody().jsonPath("$.error").isEqualTo("Region exceeds canvas bounds")
     }
+
+    private fun drawMany(token: String, cells: List<Pair<Int, Int>>, color: Int = 6) =
+        webTestClient.post().uri("/api/canvas/pixels")
+            .header("Authorization", "Bearer $token")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("pixels" to cells.map { mapOf("x" to it.first, "y" to it.second) }, "color" to color))
+            .exchange()
+
+    @Test
+    fun `여러 칸 한 번에 찍기 - 스톡만큼만, 모자라면 앞에서부터 일부만`() {
+        val token = guestToken()
+        drawMany(token, listOf(1 to 450, 2 to 450, 3 to 450)).expectStatus().isOk.expectBody()
+            .jsonPath("$.placed").isEqualTo(3).jsonPath("$.stock").isEqualTo(2)
+        drawMany(token, listOf(4 to 450, 5 to 450, 6 to 450, 7 to 450)).expectStatus().isOk.expectBody()
+            .jsonPath("$.placed").isEqualTo(2).jsonPath("$.requested").isEqualTo(4).jsonPath("$.stock").isEqualTo(0)
+        drawMany(token, listOf(8 to 450)).expectStatus().isEqualTo(429)
+        // 앞의 두 칸만 찍히고 뒤 두 칸은 그대로
+        webTestClient.get().uri("/api/canvas/pixel?x=5&y=450").exchange().expectBody().jsonPath("$.color").isEqualTo(6)
+        webTestClient.get().uri("/api/canvas/pixel?x=6&y=450").exchange().expectBody().jsonPath("$.name").doesNotExist()
+    }
+
+    @Test
+    fun `여러 칸 찍기 검증 - 중복, 등급 최대치 초과, 범위, 빈 목록`() {
+        val guest = guestToken()
+        drawMany(guest, listOf(1 to 1, 1 to 1)).expectStatus().isBadRequest.expectBody().jsonPath("$.error").isEqualTo("Duplicate pixels")
+        drawMany(guest, (0 until 6).map { it to 470 }).expectStatus().isBadRequest.expectBody().jsonPath("$.max").isEqualTo(5)
+        drawMany(guest, listOf(0 to 512)).expectStatus().isBadRequest
+        drawMany(guest, emptyList()).expectStatus().isBadRequest
+        // 회원은 30칸까지
+        drawMany(memberToken(), (0 until 30).map { it to 480 }).expectStatus().isOk.expectBody().jsonPath("$.placed").isEqualTo(30)
+    }
 }

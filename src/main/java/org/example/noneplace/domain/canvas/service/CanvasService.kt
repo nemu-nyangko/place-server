@@ -34,7 +34,18 @@ class CanvasService(
 
     /** 스톡을 1 소모하며 픽셀을 찍는다. 스톡이 없으면 consumed=false 이고 캔버스는 바뀌지 않는다. */
     suspend fun placePixel(user: PlaceUser, x: Int, y: Int, color: Int): PixelStock {
-        require(x in 0 until WIDTH && y in 0 until WIDTH) { "Out of bounds" }
+        val (stock, placed) = placePixels(user, listOf(x to y), color)
+        return stock.copy(consumed = placed == 1)
+    }
+
+    /**
+     * 여러 칸을 같은 색으로 한 번에 찍는다(편집 모드). 칸마다 스톡 1개.
+     * 스톡이 모자라면 앞에서부터 남은 스톡만큼만 찍고, 찍은 칸 수를 돌려준다.
+     * 스톡 차감·SETRANGE·작성자 기록·PUBLISH 가 Lua 한 번으로 원자 실행되고, 변경분은 PUBLISH 한 번으로 나간다.
+     */
+    suspend fun placePixels(user: PlaceUser, cells: List<Pair<Int, Int>>, color: Int): Pair<PixelStock, Int> {
+        require(cells.isNotEmpty()) { "No pixels" }
+        require(cells.all { (x, y) -> x in 0 until WIDTH && y in 0 until WIDTH }) { "Out of bounds" }
         require(Palette.isValid(color)) { "Invalid color index" }
         val tier = pixelStockService.tierOf(user)
         val now = Instant.now().epochSecond
@@ -46,20 +57,20 @@ class CanvasService(
                 tier.regenSeconds.toString(),
                 tier.maxStock.toString(),
                 pixelStockService.ttlSeconds(tier).toString(),
-                x.toString(),
-                y.toString(),
+                cells.joinToString("") { (x, y) -> "%04x%04x".format(x, y) },
                 color.toString(),
                 ownerValue(user, now),
                 CANVAS_CHANNEL,
             ),
         ).awaitSingle()
+        val placed = (result[2] as Long).toInt()
         return PixelStock(
             stock = (result[0] as Long).toInt(),
             maxStock = tier.maxStock,
             regenSeconds = tier.regenSeconds,
             secondsUntilNextCharge = result[1] as Long,
-            consumed = (result[2] as Long) == 1L,
-        )
+            consumed = placed > 0,
+        ) to placed
     }
 
     /**
@@ -107,9 +118,9 @@ class CanvasService(
 
         /**
          * KEYS = [stockKey, canvasKey, ownerKey]
-         * ARGV = [now, regenSeconds, maxStock, ttl, x, y, color, ownerValue, channel]
-         * 반환: { stock, secondsUntilNextCharge, consumed(1|0) }
-         * 발행 메시지: struct '>HHB' (x, y, color) 5바이트
+         * ARGV = [now, regenSeconds, maxStock, ttl, cells(칸당 16진수 8글자: x 4, y 4), color, ownerValue, channel]
+         * 반환: { stock, secondsUntilNextCharge, 찍은 칸 수 } — 스톡이 모자라면 앞에서부터 스톡만큼만 찍는다
+         * 발행 메시지: 칸마다 struct '>HHB' (x, y, color) 5바이트를 이어 붙여 한 번에
          */
         private val PLACE_LUA = """
             local now = tonumber(ARGV[1])
@@ -140,23 +151,31 @@ class CanvasService(
             end
             if stock >= maxStock then lastRefillAt = now end
 
-            if stock < 1 then
-                return { 0, regen - ((now - lastRefillAt) % regen), 0 }
+            local cells = ARGV[5]
+            local n = math.floor(#cells / 8)
+            if n > stock then n = stock end
+            if n < 1 then
+                return { stock, regen - ((now - lastRefillAt) % regen), 0 }
             end
 
-            stock = stock - 1
+            stock = stock - n
             redis.call('HMSET', KEYS[1], 'stock', stock, 'lastRefillAt', lastRefillAt)
             redis.call('EXPIRE', KEYS[1], ttl)
 
-            local x = tonumber(ARGV[5])
-            local y = tonumber(ARGV[6])
-            local color = tonumber(ARGV[7])
-            local offset = y * 512 + x
-            redis.call('SETRANGE', KEYS[2], offset, string.char(color))
-            redis.call('HSET', KEYS[3], offset, ARGV[8])
-            redis.call('PUBLISH', ARGV[9], struct.pack('>HHB', x, y, color))
+            local color = tonumber(ARGV[6])
+            local ch = string.char(color)
+            local parts = {}
+            for i = 0, n - 1 do
+                local x = tonumber(string.sub(cells, i * 8 + 1, i * 8 + 4), 16)
+                local y = tonumber(string.sub(cells, i * 8 + 5, i * 8 + 8), 16)
+                local offset = y * 512 + x
+                redis.call('SETRANGE', KEYS[2], offset, ch)
+                redis.call('HSET', KEYS[3], offset, ARGV[7])
+                parts[#parts + 1] = struct.pack('>HHB', x, y, color)
+            end
+            redis.call('PUBLISH', ARGV[8], table.concat(parts))
 
-            return { stock, regen - ((now - lastRefillAt) % regen), 1 }
+            return { stock, regen - ((now - lastRefillAt) % regen), n }
         """.trimIndent()
 
         /**

@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import org.example.noneplace.domain.canvas.config.CanvasProperties
 import org.example.noneplace.domain.canvas.config.Palette
 import org.example.noneplace.domain.canvas.present.dto.PixelRequest
+import org.example.noneplace.domain.canvas.present.dto.PixelsRequest
 import org.example.noneplace.domain.canvas.present.dto.RetouchRequest
 import org.example.noneplace.domain.canvas.service.AIRetouchService
 import org.example.noneplace.domain.canvas.service.CanvasMirror
@@ -127,6 +128,46 @@ class CanvasController(
         )
     }
 
+    @Operation(
+        summary = "여러 칸 한 번에 찍기 (편집 모드)",
+        description = "같은 색으로 여러 칸을 찍습니다. 칸마다 스톡 1개를 쓰고, 스톡이 모자라면 앞에서부터 남은 스톡만큼만 찍습니다.",
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "성공 (placed: 찍은 칸 수, requested: 요청한 칸 수, 스톡 정보)"),
+        ApiResponse(responseCode = "400", description = "칸 없음/너무 많음/중복, 좌표 또는 색상 오류"),
+        ApiResponse(responseCode = "401", description = "토큰 없음/만료"),
+        ApiResponse(responseCode = "429", description = "스톡 없음 또는 IP 단위 게스트 제한"),
+    )
+    @PostMapping("/pixels")
+    suspend fun drawPixels(
+        @RequestBody request: PixelsRequest,
+        @RequestHeader("Authorization", required = false) authorization: String?,
+        httpRequest: ServerHttpRequest,
+    ): ResponseEntity<Map<String, Any>> {
+        val user = userService.resolve(authorization) ?: return unauthorized()
+        val cells = request.pixels.map { it.x to it.y }
+        val maxCells = pixelStockService.tierOf(user).maxStock
+        when {
+            cells.isEmpty() -> return ResponseEntity.badRequest().body(mapOf("error" to "No pixels"))
+            cells.size > maxCells -> return ResponseEntity.badRequest().body(mapOf("error" to "Too many pixels", "max" to maxCells))
+            cells.toSet().size != cells.size -> return ResponseEntity.badRequest().body(mapOf("error" to "Duplicate pixels"))
+            cells.any { (x, y) -> x !in 0..511 || y !in 0..511 } -> return ResponseEntity.badRequest().body(mapOf("error" to "Out of bounds"))
+            !Palette.isValid(request.color) -> return ResponseEntity.badRequest().body(mapOf("error" to "Invalid color index"))
+        }
+        if (!user.isMember && !guestIpAllowed(httpRequest, cells.size.toLong())) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(mapOf("error" to "Too many guest pixels from this network", "loginRequired" to true))
+        }
+        val (stock, placed) = canvasService.placePixels(user, cells, request.color)
+        if (placed == 0) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(mapOf("error" to "No stock") + stock.toMap())
+        }
+        return ResponseEntity.ok(
+            mapOf("status" to "success", "placed" to placed, "requested" to cells.size) + stock.toMap()
+        )
+    }
+
     @Operation(summary = "AI 리터치 (회원 전용)", description = "지정 영역(8×8~16×16)의 픽셀을 AI로 리터치합니다. DataGSM 로그인 회원만 사용할 수 있습니다.")
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "성공 (changed: 바뀐 칸 수, message: AI 설명)"),
@@ -210,8 +251,8 @@ class CanvasController(
         return ResponseEntity.ok(mapOf("available" to (user.isMember && aiRetouchService != null), "remainingSeconds" to remaining))
     }
 
-    private suspend fun guestIpAllowed(request: ServerHttpRequest): Boolean =
-        rateLimitService.tryAcquire("guest-px:${ClientIp.of(request)}", properties.guestPixelsPerIpPerMinute, 60)
+    private suspend fun guestIpAllowed(request: ServerHttpRequest, cost: Long = 1): Boolean =
+        rateLimitService.tryAcquire("guest-px:${ClientIp.of(request)}", properties.guestPixelsPerIpPerMinute, 60, cost)
 
     private fun <T> unauthorized(): ResponseEntity<T> {
         @Suppress("UNCHECKED_CAST")
