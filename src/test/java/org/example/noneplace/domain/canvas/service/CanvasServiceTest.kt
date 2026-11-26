@@ -50,35 +50,36 @@ class CanvasServiceTest {
     }
 
     @Test
-    fun `게스트는 5개, 회원은 30개 스톡에서 시작`() = runTest {
-        assertEquals(5, pixelStockService.getStock(guest()).maxStock)
+    fun `게스트는 10개, 회원은 30개 스톡에서 시작`() = runTest {
+        assertEquals(10, pixelStockService.getStock(guest()).maxStock)
+        assertEquals(30, pixelStockService.getStock(guest()).regenSeconds)
         assertEquals(30, pixelStockService.getStock(member()).stock)
     }
 
     @Test
     fun `게스트 스톡을 다 쓰면 더 이상 찍히지 않음`() = runTest {
         val user = guest()
-        repeat(5) { assertTrue(canvasService.placePixel(user, 100 + it, 100, 3).consumed) }
+        repeat(10) { assertTrue(canvasService.placePixel(user, 100 + it, 100, 3).consumed) }
         val sixth = canvasService.placePixel(user, 200, 201, 4)
         assertFalse(sixth.consumed)
         assertEquals(0, sixth.stock)
-        assertTrue(sixth.secondsUntilNextCharge in 1..60)
+        assertTrue(sixth.secondsUntilNextCharge in 1..30)
         assertNotEquals(4, canvasService.loadCanvasFromRedis()[201 * 512 + 200].toInt())
     }
 
     @Test
     fun `시간이 지나면 충전되고 최대치를 넘지 않음`() = runTest {
         val user = guest()
-        repeat(5) { canvasService.placePixel(user, it, 0, 1) }
+        repeat(10) { canvasService.placePixel(user, it, 0, 1) }
         val hash = stringRedisTemplate.opsForHash<String, String>()
-        val past = Instant.now().epochSecond - 125  // 60초 주기 → 2개 충전
+        val past = Instant.now().epochSecond - 65  // 30초 주기 → 2개 충전
         hash.put(pixelStockService.stockKey(user.id), "lastRefillAt", past.toString()).awaitSingle()
         assertEquals(2, pixelStockService.getStock(user).stock)
 
         hash.put(pixelStockService.stockKey(user.id), "lastRefillAt", "0").awaitSingle()
-        assertEquals(5, pixelStockService.getStock(user).stock)
-        // 충전된 상태에서 하나 찍으면 4개
-        assertEquals(4, canvasService.placePixel(user, 9, 9, 2).stock)
+        assertEquals(10, pixelStockService.getStock(user).stock)
+        // 충전된 상태에서 하나 찍으면 9개
+        assertEquals(9, canvasService.placePixel(user, 9, 9, 2).stock)
     }
 
     @Test

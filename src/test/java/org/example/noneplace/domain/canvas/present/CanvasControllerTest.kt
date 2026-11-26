@@ -73,13 +73,13 @@ class CanvasControllerTest {
     }
 
     @Test
-    fun `게스트는 5개 찍고 나면 429`() {
+    fun `게스트는 10개 찍고 나면 429`() {
         val token = guestToken()
-        for (i in 0 until 5) {
+        for (i in 0 until 10) {
             draw(token, 20 + i, 30).expectStatus().isOk
-                .expectBody().jsonPath("$.stock").isEqualTo(4 - i).jsonPath("$.maxStock").isEqualTo(5)
+                .expectBody().jsonPath("$.stock").isEqualTo(9 - i).jsonPath("$.maxStock").isEqualTo(10)
         }
-        draw(token, 40, 30).expectStatus().isEqualTo(429)
+        draw(token, 45, 30).expectStatus().isEqualTo(429)
             .expectBody().jsonPath("$.error").isEqualTo("No stock").jsonPath("$.stock").isEqualTo(0)
     }
 
@@ -93,6 +93,8 @@ class CanvasControllerTest {
             .jsonPath("$.maxStock").isEqualTo(30)
             .jsonPath("$.regenSeconds").isEqualTo(15)
             .jsonPath("$.canAiRetouch").isEqualTo(true)
+            .jsonPath("$.memberMaxStock").isEqualTo(30)
+            .jsonPath("$.memberRegenSeconds").isEqualTo(15)
         draw(token, 50, 50).expectStatus().isOk.expectBody().jsonPath("$.stock").isEqualTo(29)
     }
 
@@ -155,8 +157,8 @@ class CanvasControllerTest {
     @Test
     fun `여러 칸 한 번에 찍기 - 스톡만큼만, 모자라면 앞에서부터 일부만`() {
         val token = guestToken()
-        drawMany(token, listOf(1 to 450, 2 to 450, 3 to 450)).expectStatus().isOk.expectBody()
-            .jsonPath("$.placed").isEqualTo(3).jsonPath("$.stock").isEqualTo(2)
+        drawMany(token, (0 until 8).map { it to 449 }).expectStatus().isOk.expectBody()
+            .jsonPath("$.placed").isEqualTo(8).jsonPath("$.stock").isEqualTo(2)
         drawMany(token, listOf(4 to 450, 5 to 450, 6 to 450, 7 to 450)).expectStatus().isOk.expectBody()
             .jsonPath("$.placed").isEqualTo(2).jsonPath("$.requested").isEqualTo(4).jsonPath("$.stock").isEqualTo(0)
         drawMany(token, listOf(8 to 450)).expectStatus().isEqualTo(429)
@@ -169,7 +171,7 @@ class CanvasControllerTest {
     fun `여러 칸 찍기 검증 - 중복, 등급 최대치 초과, 범위, 빈 목록`() {
         val guest = guestToken()
         drawMany(guest, listOf(1 to 1, 1 to 1)).expectStatus().isBadRequest.expectBody().jsonPath("$.error").isEqualTo("Duplicate pixels")
-        drawMany(guest, (0 until 6).map { it to 470 }).expectStatus().isBadRequest.expectBody().jsonPath("$.max").isEqualTo(5)
+        drawMany(guest, (0 until 11).map { it to 470 }).expectStatus().isBadRequest.expectBody().jsonPath("$.max").isEqualTo(10)
         drawMany(guest, listOf(0 to 512)).expectStatus().isBadRequest
         drawMany(guest, emptyList()).expectStatus().isBadRequest
         // 회원은 30칸까지

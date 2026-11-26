@@ -3,6 +3,7 @@ package org.example.noneplace.domain.auth.present
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.example.noneplace.domain.admin.service.AccountDirectory
+import org.example.noneplace.domain.canvas.config.CanvasProperties
 import org.example.noneplace.domain.canvas.service.AIRetouchService
 import org.example.noneplace.domain.auth.config.AuthProperties
 import org.example.noneplace.domain.auth.service.AuthTokenService
@@ -32,6 +33,7 @@ class AuthController(
     private val authProperties: AuthProperties,
     private val aiRetouchService: AIRetouchService?,
     private val accountDirectory: AccountDirectory,
+    private val canvasProperties: CanvasProperties,
 ) {
 
     @Operation(summary = "게스트 토큰 발급", description = "QR 로 처음 들어온 사용자에게 바로 픽셀을 찍을 수 있는 게스트 토큰을 발급합니다.")
@@ -64,6 +66,9 @@ class AuthController(
                 "canAiRetouch" to user.isMember,
                 "aiAvailable" to (aiRetouchService != null),
                 "loginAvailable" to oAuthService.enabled,
+                // 로그인 안내 문구용: 회원 혜택을 클라이언트에 숫자로 박아 두지 않는다
+                "memberMaxStock" to canvasProperties.member.maxStock,
+                "memberRegenSeconds" to canvasProperties.member.regenSeconds,
             ) + stock.toMap()
         )
     }

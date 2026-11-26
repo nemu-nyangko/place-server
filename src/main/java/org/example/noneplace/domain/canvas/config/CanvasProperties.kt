@@ -8,7 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 @ConfigurationProperties(prefix = "canvas")
 data class CanvasProperties(
     /** 비로그인(게스트) 픽셀 스톡 */
-    val guest: Tier = Tier(maxStock = 5, regenSeconds = 60),
+    val guest: Tier = Tier(maxStock = 10, regenSeconds = 30),
     /** DataGSM 로그인 회원 픽셀 스톡 */
     val member: Tier = Tier(maxStock = 30, regenSeconds = 15),
     /** AI 리터치 쿨타임(초). 회원 전용 기능 */

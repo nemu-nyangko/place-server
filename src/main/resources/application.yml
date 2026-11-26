@@ -11,11 +11,11 @@ server:
   shutdown: graceful
 
 canvas:
-  # 비로그인(게스트): QR 찍자마자 바로 참여할 수 있지만 빡빡하게
+  # 비로그인(게스트): QR 찍자마자 바로 참여
   guest:
-    max-stock: 5
-    regen-seconds: 60
-  # DataGSM 로그인 회원: 픽셀 6배, 충전 4배 빠름 + AI 리터치
+    max-stock: 10
+    regen-seconds: 30
+  # DataGSM 로그인 회원: 픽셀 3배, 충전 2배 빠름 + AI 리터치
   member:
     max-stock: 30
     regen-seconds: 15

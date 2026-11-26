@@ -59,7 +59,7 @@ NonePlace (g/place) is a Reddit r/place–style collaborative pixel canvas for G
 
 ### Tiers
 
-Guest: 5 pixels, +1 per 60 s, no AI retouch. Member (DataGSM): 30 pixels, +1 per 15 s, AI retouch every 10 min. Tune in `application.yml`.
+Guest: 10 pixels, +1 per 30 s, no AI retouch. Member (DataGSM): 30 pixels, +1 per 15 s, AI retouch every 10 min. Tune in `application.yml`.
 
 ### Deployment
 

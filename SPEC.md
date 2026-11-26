@@ -24,7 +24,7 @@ QR로 들어오면 바로 게스트로 참여할 수 있고, DataGSM으로 로�
 
 | 등급 | 발급 방법 | userId 형식 | 픽셀 스톡 | AI 리터치 |
 |------|-----------|-------------|-----------|-----------|
-| 게스트 (`GUEST`) | `POST /api/auth/guest` | `g:<uuid>` | 최대 5개, 60초마다 1개 충전 | 불가 |
+| 게스트 (`GUEST`) | `POST /api/auth/guest` | `g:<uuid>` | 최대 10개, 30초마다 1개 충전 | 불가 |
 | 회원 (`MEMBER`) | DataGSM 로그인 | `m:<DataGSM 계정 id>` | 최대 30개, 15초마다 1개 충전 | 10분 쿨타임 |
 
 - 수치는 `application.yml`의 `canvas.guest`, `canvas.member`, `canvas.ai-retouch-cooldown-seconds`로 조정합니다.
@@ -62,12 +62,13 @@ QR로 들어오면 바로 게스트로 참여할 수 있고, DataGSM으로 로�
   "userId": "m:77", "type": "MEMBER", "name": "홍길동",
   "grade": 1, "classNum": 2, "number": 3,
   "canAiRetouch": true, "loginAvailable": true,
+  "memberMaxStock": 30, "memberRegenSeconds": 15,
   "stock": 30, "maxStock": 30, "regenSeconds": 15, "secondsUntilNextCharge": 0
 }
 401 { "error": "Unauthorized" }
 ```
 
-`loginAvailable`이 false면 서버에 DataGSM 클라이언트가 설정되지 않은 상태입니다.
+`loginAvailable`이 false면 서버에 DataGSM 클라이언트가 설정되지 않은 상태입니다. `memberMaxStock`/`memberRegenSeconds`는 회원 등급 값으로, 게스트에게 보여 주는 로그인 안내 문구에 씁니다.
 
 ### `GET /api/auth/datagsm/login?return_to=<클라이언트 URL>`
 
@@ -133,7 +134,7 @@ DataGSM 클라이언트 설정: 스코프 `openid datagsm:account_read datagsm:s
 429  { "error": "No stock", ... } | { "error": "Too many guest pixels from this network", "loginRequired": true }
 ```
 
-- 한 번에 최대 칸 수 = 등급의 최대 스톡(게스트 5, 회원 30).
+- 한 번에 최대 칸 수 = 등급의 최대 스톡(게스트 10, 회원 30).
 - 스톡이 모자라면 앞에서부터 남은 스톡만큼만 찍고 `placed`로 알려 줍니다(클라이언트는 나머지를 되돌림).
 - 스톡 차감·칸 기록·작성자 기록·PUBLISH(칸들을 이어 붙인 메시지 하나)가 Lua 한 번으로 원자 실행됩니다. `POST /pixel`도 같은 스크립트를 칸 1개로 씁니다.
 - 게스트 IP 제한은 칸 수만큼 차감합니다.
