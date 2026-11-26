@@ -127,9 +127,7 @@ class DataGsmOAuthService(
             throw OAuthException("userinfo_failed")
         }
 
-        if (info.status != null && info.status != "ACTIVE") throw OAuthException("account_inactive")
-        if (info.student?.role == "WITHDRAWN") throw OAuthException("account_inactive")
-
+        // DataGSM 로그인(@gsm.hs.kr, 활성 계정만 가능) 자체가 우리 학교 구성원이라는 증명 — 별도 판별 없음
         val name = info.student?.name ?: info.teacher?.name?.let { "$it 선생님" } ?: info.email?.substringBefore('@')
         return PlaceUser(
             id = "m:${info.id}",
@@ -155,8 +153,6 @@ class DataGsmOAuthService(
     data class UserInfo(
         val id: Long,
         val email: String? = null,
-        val status: String? = null,
-        val objectType: String? = null,
         val student: Student? = null,
         val teacher: Teacher? = null,
     )
@@ -167,7 +163,6 @@ class DataGsmOAuthService(
         val grade: Int? = null,
         val classNum: Int? = null,
         val number: Int? = null,
-        val role: String? = null,
     )
 
     @JsonIgnoreProperties(ignoreUnknown = true)

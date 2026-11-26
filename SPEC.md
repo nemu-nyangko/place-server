@@ -68,7 +68,7 @@ DataGSM 인가 페이지로 302 리다이렉트합니다. `return_to`의 오리�
 DataGSM에 등록하는 Redirect URI입니다. 처리 후 클라이언트로 302 리다이렉트합니다.
 
 - 성공: `<return_to>#token=<회원 토큰>`
-- 실패: `<return_to>#auth_error=<access_denied | invalid_state | token_exchange_failed | userinfo_failed | account_inactive>`
+- 실패: `<return_to>#auth_error=<access_denied | invalid_state | token_exchange_failed | userinfo_failed>`
 
 DataGSM 클라이언트 설정: 스코프 `openid datagsm:account_read datagsm:student_read`, Redirect URI `https://<서버>/api/auth/datagsm/callback`.
 
