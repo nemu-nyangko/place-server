@@ -1,11 +1,14 @@
 package org.example.noneplace.domain.canvas.service
 
 import org.example.noneplace.global.ai.openai.service.OpenAIService
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression
 import org.springframework.context.annotation.Primary
 import org.springframework.stereotype.Service
 
+/** OPENAI_API_KEY 가 있을 때만 활성화. 없으면 [StubAIRetouchService] 가 쓰인다. */
 @Primary
 @Service
+@ConditionalOnExpression("'\${openai.api-key:}' != ''")
 class OpenAIAIRetouchService(
     private val openAIService: OpenAIService
 ) : AIRetouchService {

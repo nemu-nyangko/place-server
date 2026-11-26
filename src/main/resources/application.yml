@@ -6,10 +6,32 @@ spring:
       host: 127.0.0.1
       port: 6379
 
+server:
+  port: 8080
+  shutdown: graceful
+
 canvas:
-  pixel-regen-seconds: 30            # 픽셀 스톡 충전 간격 (초)
-  pixel-max-stock: 20                # 최대 스톡 개수
-  ai-retouch-cooldown-seconds: 900   # AI 리터칭 쿨타임 (초), 기본 15분
+  # 비로그인(게스트): QR 찍자마자 바로 참여할 수 있지만 빡빡하게
+  guest:
+    max-stock: 5
+    regen-seconds: 60
+  # DataGSM 로그인 회원: 픽셀 6배, 충전 4배 빠름 + AI 리터치
+  member:
+    max-stock: 30
+    regen-seconds: 15
+  ai-retouch-cooldown-seconds: 600
+  guest-pixels-per-ip-per-minute: 1200
+  broadcast-interval-ms: 50
+
+auth:
+  token-secret: ${AUTH_TOKEN_SECRET:local-dev-only-secret-please-change-0123456789}
+  member-token-ttl-days: 30
+  guest-token-ttl-days: 365
+  guest-issue-per-ip-per-minute: 300
+  datagsm:
+    client-id: ${DATAGSM_CLIENT_ID:}
+    client-secret: ${DATAGSM_CLIENT_SECRET:}
+    redirect-uri: ${DATAGSM_REDIRECT_URI:http://localhost:8080/api/auth/datagsm/callback}
 
 openai:
   api-key: ${OPENAI_API_KEY:}
@@ -17,12 +39,28 @@ openai:
   base-url: https://api.openai.com/v1
 
 cors:
-  allowed-origins:
-    - "http://localhost:3000"
-    - "http://localhost:5173"
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
 
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
   api-docs:
     path: /v3/api-docs
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

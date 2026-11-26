@@ -12,11 +12,10 @@ class CorsConfig(
 ) : WebFluxConfigurer {
 
     override fun addCorsMappings(registry: CorsRegistry) {
-        registry.addMapping("/**")
+        registry.addMapping("/api/**")
             .allowedOrigins(*allowedOrigins.toTypedArray())
             .allowedMethods("GET", "POST", "OPTIONS")
-            .allowedHeaders("Content-Type", "X-User-Id")
-            .exposedHeaders("X-User-Id")
+            .allowedHeaders("Content-Type", "Authorization")
             .maxAge(3600)
     }
 }

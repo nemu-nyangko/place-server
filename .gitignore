@@ -39,3 +39,5 @@ out/
 ### Env ###
 .env
 .env.*
+!.env.example
+.npm-admin

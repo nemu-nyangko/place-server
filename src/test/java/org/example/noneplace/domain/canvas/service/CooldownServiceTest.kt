@@ -1,5 +1,7 @@
 package org.example.noneplace.domain.canvas.service
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.runTest
 import org.example.noneplace.global.redis.config.TestRedisConfig
 import org.junit.jupiter.api.Assertions.*
@@ -17,33 +19,19 @@ class CooldownServiceTest {
     lateinit var cooldownService: CooldownService
 
     @Test
-    fun `AI 리터치 쿨타임 등록 전에는 남은 시간이 null`() = runTest {
-        val userId = UUID.randomUUID().toString()
-
-        val remaining = cooldownService.getRemainingAiRetouchCooldown(userId)
-
-        assertNull(remaining)
+    fun `AI 리터치 쿨타임은 동시 요청 중 하나만 선점`() = runTest {
+        val userId = "m:${UUID.randomUUID()}"
+        val results = (1..10).map { async { cooldownService.claimAiRetouch(userId) } }.awaitAll()
+        assertEquals(1, results.count { it == null })
+        assertTrue(cooldownService.getRemainingAiRetouchCooldown(userId)!! > 0)
     }
 
     @Test
-    fun `AI 리터치 쿨타임 등록 후 남은 시간이 존재`() = runTest {
-        val userId = UUID.randomUUID().toString()
-
-        cooldownService.setAiRetouchCooldown(userId)
-        val remaining = cooldownService.getRemainingAiRetouchCooldown(userId)
-
-        assertNotNull(remaining)
-        assertTrue(remaining!! > 0)
-    }
-
-    @Test
-    fun `서로 다른 유저는 AI 리터치 쿨타임을 공유하지 않음`() = runTest {
-        val userA = UUID.randomUUID().toString()
-        val userB = UUID.randomUUID().toString()
-
-        cooldownService.setAiRetouchCooldown(userA)
-
-        assertNotNull(cooldownService.getRemainingAiRetouchCooldown(userA))
-        assertNull(cooldownService.getRemainingAiRetouchCooldown(userB))
+    fun `선점 해제 후 다시 사용 가능`() = runTest {
+        val userId = "m:${UUID.randomUUID()}"
+        assertNull(cooldownService.claimAiRetouch(userId))
+        cooldownService.releaseAiRetouch(userId)
+        assertNull(cooldownService.getRemainingAiRetouchCooldown(userId))
+        assertNull(cooldownService.claimAiRetouch(userId))
     }
 }
