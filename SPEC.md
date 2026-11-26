@@ -78,15 +78,20 @@ DataGSM 클라이언트 설정: 스코프 `openid datagsm:account_read datagsm:s
 
 ### `GET /api/canvas`
 
-262,144바이트(512×512) 바이너리. 각 바이트는 색상 인덱스(0~15), `offset = y * 512 + x`.
+262,144바이트(512×512) 바이너리. 각 바이트는 색상 인덱스(0~255), `offset = y * 512 + x`.
 `Accept-Encoding: gzip`이면 gzip으로 보냅니다(브라우저는 자동 처리).
 서버 메모리 미러에서 응답하며 최대 250ms 오래된 스냅샷일 수 있습니다. WebSocket 변경분으로 메웁니다(아래 동기화 순서 참고).
 
 ### `GET /api/canvas/palette`
 
 ```json
-[{ "index": 0, "name": "White", "hex": "#FFFFFF" }, ...]
+[{ "index": 0, "name": "White", "hex": "#FFFFFF" }, ...]   // 256개
 ```
+
+- 0~15: 기본 16색 (팔레트 버튼. 클라이언트는 청록(9)을 빼고 그 자리에 컬러피커를 둔다)
+- 16~231: 컬러피커 24색상(15° 간격) × 9톤 (HSL, 채도 0.85, 밝기 0.90→0.14)
+- 232~255: 회색 24단계
+- 서버 `Palette.kt`와 클라이언트 `board.ts`가 같은 공식으로 만든다.
 
 ### `GET /api/canvas/cooldown` (인증 필요)
 
@@ -121,18 +126,28 @@ DataGSM 클라이언트 설정: 스코프 `openid datagsm:account_read datagsm:s
 
 ```json
 요청 { "x": 0, "y": 0, "width": 16, "height": 16, "prompt": "노을 진 하늘처럼" }
-200  { "status": "success", "cooldownSeconds": 600 }
+200  { "status": "success", "changed": 12, "message": "웃는 표정으로 바꿨어요", "cooldownSeconds": 600 }
+200  { "status": "success", "changed": 0, "message": "...", "cooldownSeconds": 0 }   // 바뀐 칸 없음 → 쿨타임 돌려줌
 400  { "error": "Region size must be between 8 and 16" } | { "error": "Region exceeds canvas bounds" } | { "error": "Prompt too long" }
 403  { "error": "Login required", "loginRequired": true }
+422  { "error": "Refused", "refused": true, "message": "...", "cooldownSeconds": 600 }   // 부적절한 요청, 쿨타임 유지
 429  { "error": "Cooldown active", "remainingSeconds": 412 }
+502  { "error": "AI retouch failed", "aiFailed": true }   // AI 오류/시간 초과, 쿨타임 돌려줌
+503  { "error": "AI retouch unavailable", "aiUnavailable": true }   // OPENAI_API_KEY 없음
 ```
 
-`OPENAI_API_KEY`가 있으면 OpenAI 구현, 없으면 스텁(색상 +1 순환)이 쓰입니다. 쿨타임은 `SET NX EX`로 먼저 선점하고, 처리에 실패하면 되돌립니다.
+처리 방식 (`OpenAIAIRetouchService`):
+- 입력: ① 영역과 둘레 6칸을 칸당 24px로 키운 PNG(영역은 자홍색 테두리, 바깥은 어둡게) ② 영역 색 번호를 행별로 담은 JSON(`rows[y][x]`)과 쓸 수 있는 색 목록(기본 16색 + 주변에 있는 색)
+- 출력: JSON Schema(strict)로 강제한 `{ refused, message, edits: [{x, y, color}] }` — 바꿀 칸만
+- 서버가 영역 밖 좌표, 허용되지 않은 색, 원래와 같은 색을 걸러낸 뒤 바뀐 칸만 Lua 한 번으로 적용하고 한 번에 PUBLISH
+- 모델: `OPENAI_MODEL`(기본 `gpt-5.4-mini`), `OPENAI_REASONING_EFFORT`(기본 `low`). gpt-4.1-mini / gpt-4.1 / gpt-5.4-mini / gpt-5.4-nano 비교에서 gpt-5.4-mini 품질이 가장 좋았다(응답 3~8초).
+- 키가 없으면 리터치는 꺼진다. 가짜 구현(`StubAIRetouchService`, 색 +1)은 `ai.stub-enabled=true`인 테스트에서만 등록된다.
+- 쿨타임은 `SET NX EX`로 먼저 선점하고, 실패·변경 없음이면 되돌린다.
 
 ### `GET /api/canvas/ai-retouch/cooldown` (인증 필요)
 
 ```json
-{ "available": true, "remainingSeconds": 0 }
+{ "available": true, "remainingSeconds": 0 }   // available = 회원 && AI 설정됨
 ```
 
 ---

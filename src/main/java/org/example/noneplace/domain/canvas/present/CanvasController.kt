@@ -17,6 +17,7 @@ import org.example.noneplace.domain.user.model.PlaceUser
 import org.example.noneplace.domain.user.service.UserService
 import org.example.noneplace.global.ratelimit.RateLimitService
 import org.example.noneplace.global.web.ClientIp
+import org.slf4j.LoggerFactory
 import org.springframework.http.CacheControl
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
@@ -39,8 +40,10 @@ class CanvasController(
     private val rateLimitService: RateLimitService,
     private val properties: CanvasProperties,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
 
-    @Operation(summary = "캔버스 다운로드", description = "512×512 캔버스를 바이너리로 반환합니다. 각 바이트는 색상 인덱스(0~15). Accept-Encoding: gzip 이면 압축해 보냅니다.")
+
+    @Operation(summary = "캔버스 다운로드", description = "512×512 캔버스를 바이너리로 반환합니다. 각 바이트는 색상 인덱스(0~255). Accept-Encoding: gzip 이면 압축해 보냅니다.")
     @GetMapping(produces = [MediaType.APPLICATION_OCTET_STREAM_VALUE])
     suspend fun downloadCanvas(request: ServerHttpRequest): ResponseEntity<ByteArray> {
         val noCache = CacheControl.noStore()
@@ -126,10 +129,12 @@ class CanvasController(
 
     @Operation(summary = "AI 리터치 (회원 전용)", description = "지정 영역(8×8~16×16)의 픽셀을 AI로 리터치합니다. DataGSM 로그인 회원만 사용할 수 있습니다.")
     @ApiResponses(
-        ApiResponse(responseCode = "200", description = "성공"),
+        ApiResponse(responseCode = "200", description = "성공 (changed: 바뀐 칸 수, message: AI 설명)"),
         ApiResponse(responseCode = "400", description = "영역 크기 범위 초과 또는 캔버스 경계 초과"),
         ApiResponse(responseCode = "403", description = "게스트는 사용할 수 없음"),
         ApiResponse(responseCode = "429", description = "쿨타임 중 (remainingSeconds 포함)"),
+        ApiResponse(responseCode = "422", description = "부적절한 요청이라 AI 가 거절 (message 포함)"),
+        ApiResponse(responseCode = "502", description = "AI 호출 실패 (쿨타임은 돌려줌)"),
         ApiResponse(responseCode = "503", description = "AI 가 설정되지 않음"),
     )
     @PostMapping("/ai-retouch")
@@ -162,16 +167,36 @@ class CanvasController(
                 .body(mapOf("error" to "Cooldown active", "remainingSeconds" to remaining))
         }
 
+        val result = try {
+            aiRetouchService.retouch(request.x, request.y, request.width, request.height, request.prompt.trim())
+        } catch (e: Exception) {
+            cooldownService.releaseAiRetouch(user.id)
+            log.warn("AI retouch failed: {}", e.toString())
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(mapOf("error" to "AI retouch failed", "aiFailed" to true))
+        }
+        if (result.refused) {
+            // 부적절한 요청은 쿨타임을 그대로 둔다(반복 시도 방지)
+            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(mapOf("error" to "Refused", "refused" to true, "message" to result.message, "cooldownSeconds" to properties.aiRetouchCooldownSeconds))
+        }
+        if (result.edits.isEmpty()) {
+            cooldownService.releaseAiRetouch(user.id)
+            return ResponseEntity.ok(mapOf("status" to "success", "changed" to 0, "message" to result.message, "cooldownSeconds" to 0))
+        }
         try {
-            val current = canvasService.getRegion(request.x, request.y, request.width, request.height)
-            val retouched = aiRetouchService.retouch(request.x, request.y, request.width, request.height, current, request.prompt)
-            canvasService.updateRegion(user, request.x, request.y, request.width, request.height, retouched)
+            canvasService.applyEdits(user, result.edits)
         } catch (e: Exception) {
             cooldownService.releaseAiRetouch(user.id)
             throw e
         }
         return ResponseEntity.ok(
-            mapOf("status" to "success", "cooldownSeconds" to properties.aiRetouchCooldownSeconds)
+            mapOf(
+                "status" to "success",
+                "changed" to result.edits.size,
+                "message" to result.message,
+                "cooldownSeconds" to properties.aiRetouchCooldownSeconds,
+            )
         )
     }
 

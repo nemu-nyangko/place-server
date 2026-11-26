@@ -9,11 +9,13 @@ import org.springframework.stereotype.Service
  */
 @Service
 @ConditionalOnProperty("ai.stub-enabled", havingValue = "true")
-class StubAIRetouchService : AIRetouchService {
+class StubAIRetouchService(private val mirror: CanvasMirror) : AIRetouchService {
 
-    override suspend fun retouch(x: Int, y: Int, width: Int, height: Int, currentPixels: ByteArray, prompt: String): ByteArray {
-        return ByteArray(currentPixels.size) { i ->
-            (((currentPixels[i].toInt() and 0xFF) + 1) % 16).toByte()
+    override suspend fun retouch(x: Int, y: Int, width: Int, height: Int, prompt: String): RetouchResult {
+        val current = mirror.region(x, y, width, height)
+        val edits = current.indices.map { i ->
+            PixelEdit(x + i % width, y + i / width, ((current[i].toInt() and 0xFF) + 1) % 16)
         }
+        return RetouchResult(edits, "stub")
     }
 }

@@ -85,8 +85,8 @@ class CanvasServiceTest {
     fun `영역 업데이트와 픽셀 작성자 기록`() = runTest {
         val user = member()
         // 128 이상 확장색이 섞여도 바이트가 깨지지 않아야 한다
-        val pixels = ByteArray(64) { (if (it % 2 == 0) it % 16 else 192 + it).toByte() }
-        canvasService.updateRegion(user, 300, 300, 8, 8, pixels)
+        val edits = (0 until 64).map { PixelEdit(300 + it % 8, 300 + it / 8, if (it % 2 == 0) it % 16 else 192 + it) }
+        assertEquals(64, canvasService.applyEdits(user, edits))
         val canvas = canvasService.loadCanvasFromRedis()
         // row 1, col 6 → index 14 / row 1, col 7 → 192 + 15
         assertEquals(14, canvas[301 * 512 + 306].toInt())

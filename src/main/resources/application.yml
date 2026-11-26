@@ -35,8 +35,11 @@ auth:
 
 openai:
   api-key: ${OPENAI_API_KEY:}
-  model: gpt-4o-mini
+  model: ${OPENAI_MODEL:gpt-5.4-mini}
+  # 추론 모델(gpt-5 계열)용. gpt-4.1 계열로 바꾸면 비워야 한다
+  reasoning-effort: ${OPENAI_REASONING_EFFORT:low}
   base-url: https://api.openai.com/v1
+  timeout-seconds: 60
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}

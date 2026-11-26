@@ -28,7 +28,7 @@ class CanvasService(
     private val placeScript: RedisScript<List<Long>> =
         RedisScript.of(PLACE_LUA, List::class.java) as RedisScript<List<Long>>
 
-    private val regionScript: RedisScript<Long> = RedisScript.of(REGION_LUA, Long::class.javaObjectType)
+    private val editsScript: RedisScript<Long> = RedisScript.of(EDITS_LUA, Long::class.javaObjectType)
 
     data class PixelInfo(val name: String, val member: Boolean, val placedAt: Long)
 
@@ -62,19 +62,20 @@ class CanvasService(
         )
     }
 
-    /** 영역 덮어쓰기(AI 리터치 결과 반영). [pixels] 는 행 우선 순서, 길이 = width*height */
-    suspend fun updateRegion(user: PlaceUser, x: Int, y: Int, width: Int, height: Int, pixels: ByteArray) {
-        require(pixels.size == width * height) { "Invalid region data" }
-        // 색상 인덱스는 0~255 라 UTF-8 문자열로 넘기면 깨진다 → 16진수 2글자씩 인코딩해 Lua 에서 되돌린다
-        val encoded = pixels.joinToString("") { "%02x".format(it.toInt() and 0xFF) }
-        stringRedisTemplate.execute(
-            regionScript,
+    /**
+     * 지정한 칸들만 바꾼다(AI 리터치 결과 반영). 좌표는 캔버스 절대 좌표.
+     * 바뀐 칸만 작성자가 갱신되고, 변경분은 한 번의 PUBLISH 로 모두에게 전달된다.
+     */
+    suspend fun applyEdits(user: PlaceUser, edits: List<PixelEdit>): Int {
+        if (edits.isEmpty()) return 0
+        require(edits.all { it.x in 0 until WIDTH && it.y in 0 until WIDTH && Palette.isValid(it.color) }) { "Invalid edit" }
+        // 칸당 16진수 10글자(x 4, y 4, color 2). 0~255 색은 UTF-8 문자열로 넘기면 깨지므로 16진수로 보낸다
+        val encoded = edits.joinToString("") { "%04x%04x%02x".format(it.x, it.y, it.color) }
+        return stringRedisTemplate.execute(
+            editsScript,
             listOf(CANVAS_KEY, OWNER_KEY),
-            listOf(
-                x.toString(), y.toString(), width.toString(), height.toString(),
-                encoded, ownerValue(user, Instant.now().epochSecond), CANVAS_CHANNEL,
-            ),
-        ).awaitSingle()
+            listOf(encoded, ownerValue(user, Instant.now().epochSecond), CANVAS_CHANNEL),
+        ).awaitSingle().toInt()
     }
 
     fun getRegion(x: Int, y: Int, width: Int, height: Int): ByteArray = mirror.region(x, y, width, height)
@@ -160,27 +161,21 @@ class CanvasService(
 
         /**
          * KEYS = [canvasKey, ownerKey]
-         * ARGV = [x, y, width, height, pixels(행 우선, 픽셀당 16진수 2글자), ownerValue, channel]
+         * ARGV = [edits(칸당 16진수 10글자: x 4, y 4, color 2), ownerValue, channel]
          */
-        private val REGION_LUA = """
-            local x = tonumber(ARGV[1])
-            local y = tonumber(ARGV[2])
-            local w = tonumber(ARGV[3])
-            local h = tonumber(ARGV[4])
-            local px = ARGV[5]
+        private val EDITS_LUA = """
+            local px = ARGV[1]
             local parts = {}
-            for row = 0, h - 1 do
-                local bytes = {}
-                for col = 0, w - 1 do
-                    local i = (row * w + col) * 2 + 1
-                    local c = tonumber(string.sub(px, i, i + 1), 16)
-                    bytes[#bytes + 1] = string.char(c)
-                    redis.call('HSET', KEYS[2], (y + row) * 512 + x + col, ARGV[6])
-                    parts[#parts + 1] = struct.pack('>HHB', x + col, y + row, c)
-                end
-                redis.call('SETRANGE', KEYS[1], (y + row) * 512 + x, table.concat(bytes))
+            for i = 1, #px, 10 do
+                local x = tonumber(string.sub(px, i, i + 3), 16)
+                local y = tonumber(string.sub(px, i + 4, i + 7), 16)
+                local c = tonumber(string.sub(px, i + 8, i + 9), 16)
+                local offset = y * 512 + x
+                redis.call('SETRANGE', KEYS[1], offset, string.char(c))
+                redis.call('HSET', KEYS[2], offset, ARGV[2])
+                parts[#parts + 1] = struct.pack('>HHB', x, y, c)
             end
-            redis.call('PUBLISH', ARGV[7], table.concat(parts))
+            redis.call('PUBLISH', ARGV[3], table.concat(parts))
             return #parts
         """.trimIndent()
     }
