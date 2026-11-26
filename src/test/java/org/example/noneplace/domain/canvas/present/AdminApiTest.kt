@@ -31,6 +31,7 @@ class AdminApiTest {
         val friend = token("8200", "이친구")
         me(root).expectStatus().isOk
         me(friend).expectBody().jsonPath("$.admin").isEqualTo(false)
+        Thread.sleep(300) // 접속 기록은 요청과 따로 남는다
 
         // 일반 회원은 관리자 API 사용 불가
         webTestClient.get().uri("/api/admin/accounts").header("Authorization", "Bearer $friend").exchange()
@@ -71,6 +72,16 @@ class AdminApiTest {
         webTestClient.delete().uri("/api/admin/admins/8200").header("Authorization", "Bearer $root").exchange()
             .expectStatus().isOk
         me(friend).expectBody().jsonPath("$.admin").isEqualTo(false).jsonPath("$.maxStock").isEqualTo(30)
+    }
+
+    @Test
+    fun `예전에 로그인한 회원은 어떤 요청이든 하면 목록에 올라간다`() {
+        val old = token("8300", "정수진")
+        webTestClient.get().uri("/api/canvas/cooldown").header("Authorization", "Bearer $old").exchange()
+            .expectStatus().isOk
+        Thread.sleep(300)
+        webTestClient.get().uri("/api/admin/accounts").header("Authorization", "Bearer ${token("8146", "김동현")}").exchange()
+            .expectBody().jsonPath("$.accounts[?(@.accountId=='8300')].name").isEqualTo("정수진")
     }
 
     @Test

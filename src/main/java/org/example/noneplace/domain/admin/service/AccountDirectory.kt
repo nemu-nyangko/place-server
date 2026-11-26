@@ -3,6 +3,8 @@ package org.example.noneplace.domain.admin.service
 import com.fasterxml.jackson.databind.ObjectMapper
 import kotlinx.coroutines.reactor.awaitSingle
 import kotlinx.coroutines.reactor.awaitSingleOrNull
+import kotlinx.coroutines.reactor.mono
+import org.slf4j.LoggerFactory
 import org.example.noneplace.domain.user.model.PlaceUser
 import org.springframework.data.domain.Range
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
@@ -30,7 +32,16 @@ class AccountDirectory(
         val lastSeen: Long,
     )
 
+    private val log = LoggerFactory.getLogger(javaClass)
     private val lastWrite = ConcurrentHashMap<String, Long>()
+
+    /** 요청 처리를 기다리게 하지 않고 기록만 남긴다 (회원의 모든 인증 요청에서 호출) */
+    fun touchInBackground(user: PlaceUser) {
+        if (!user.isMember) return
+        val prev = lastWrite[accountId(user)]
+        if (prev != null && System.currentTimeMillis() - prev < WRITE_INTERVAL_MS) return
+        mono { touch(user) }.subscribe({}, { e -> log.warn("접속 기록 실패: {}", e.message) })
+    }
 
     suspend fun touch(user: PlaceUser, now: Long = System.currentTimeMillis(), force: Boolean = false) {
         if (!user.isMember) return

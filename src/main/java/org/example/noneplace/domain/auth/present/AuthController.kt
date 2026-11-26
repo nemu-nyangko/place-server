@@ -51,7 +51,6 @@ class AuthController(
     suspend fun me(@RequestHeader("Authorization", required = false) authorization: String?): ResponseEntity<Map<String, Any?>> {
         val user = userService.resolve(authorization)
             ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(mapOf("error" to "Unauthorized"))
-        accountDirectory.touch(user)
         val stock = pixelStockService.getStock(user)
         return ResponseEntity.ok(
             mapOf(
