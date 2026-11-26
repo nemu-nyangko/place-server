@@ -61,9 +61,11 @@ class CanvasService(
                 color.toString(),
                 ownerValue(user, now),
                 CANVAS_CHANNEL,
+                if (user.isAdmin) "1" else "0",
             ),
         ).awaitSingle()
         val placed = (result[2] as Long).toInt()
+        if (user.isAdmin) return PixelStock.unlimited(consumed = placed > 0) to placed
         return PixelStock(
             stock = (result[0] as Long).toInt(),
             maxStock = tier.maxStock,
@@ -118,7 +120,7 @@ class CanvasService(
 
         /**
          * KEYS = [stockKey, canvasKey, ownerKey]
-         * ARGV = [now, regenSeconds, maxStock, ttl, cells(칸당 16진수 8글자: x 4, y 4), color, ownerValue, channel]
+         * ARGV = [now, regenSeconds, maxStock, ttl, cells(칸당 16진수 8글자: x 4, y 4), color, ownerValue, channel, admin('1'이면 스톡 무시)]
          * 반환: { stock, secondsUntilNextCharge, 찍은 칸 수 } — 스톡이 모자라면 앞에서부터 스톡만큼만 찍는다
          * 발행 메시지: 칸마다 struct '>HHB' (x, y, color) 5바이트를 이어 붙여 한 번에
          */
@@ -128,39 +130,44 @@ class CanvasService(
             local maxStock = tonumber(ARGV[3])
             local ttl = tonumber(ARGV[4])
 
-            local data = redis.call('HMGET', KEYS[1], 'stock', 'lastRefillAt')
-            local stock = tonumber(data[1])
-            local lastRefillAt = tonumber(data[2])
-            if stock == nil or lastRefillAt == nil then
-                stock = maxStock
-                lastRefillAt = now
-            end
-            if stock > maxStock then stock = maxStock end
-
-            local elapsed = now - lastRefillAt
-            if elapsed < 0 then elapsed = 0 end
-            local gained = math.floor(elapsed / regen)
-            if gained > 0 then
-                stock = stock + gained
-                if stock >= maxStock then
+            local cells = ARGV[5]
+            local total = math.floor(#cells / 8)
+            local stock = 0
+            local lastRefillAt = now
+            local n = total
+            if ARGV[9] ~= '1' then -- 관리자('1')는 스톡을 읽지도 줄이지도 않는다
+                local data = redis.call('HMGET', KEYS[1], 'stock', 'lastRefillAt')
+                stock = tonumber(data[1])
+                lastRefillAt = tonumber(data[2])
+                if stock == nil or lastRefillAt == nil then
                     stock = maxStock
                     lastRefillAt = now
-                else
-                    lastRefillAt = lastRefillAt + gained * regen
                 end
-            end
-            if stock >= maxStock then lastRefillAt = now end
+                if stock > maxStock then stock = maxStock end
 
-            local cells = ARGV[5]
-            local n = math.floor(#cells / 8)
-            if n > stock then n = stock end
-            if n < 1 then
-                return { stock, regen - ((now - lastRefillAt) % regen), 0 }
-            end
+                local elapsed = now - lastRefillAt
+                if elapsed < 0 then elapsed = 0 end
+                local gained = math.floor(elapsed / regen)
+                if gained > 0 then
+                    stock = stock + gained
+                    if stock >= maxStock then
+                        stock = maxStock
+                        lastRefillAt = now
+                    else
+                        lastRefillAt = lastRefillAt + gained * regen
+                    end
+                end
+                if stock >= maxStock then lastRefillAt = now end
 
-            stock = stock - n
-            redis.call('HMSET', KEYS[1], 'stock', stock, 'lastRefillAt', lastRefillAt)
-            redis.call('EXPIRE', KEYS[1], ttl)
+                if n > stock then n = stock end
+                if n < 1 then
+                    return { stock, regen - ((now - lastRefillAt) % regen), 0 }
+                end
+
+                stock = stock - n
+                redis.call('HMSET', KEYS[1], 'stock', stock, 'lastRefillAt', lastRefillAt)
+                redis.call('EXPIRE', KEYS[1], ttl)
+            end
 
             local color = tonumber(ARGV[6])
             local ch = string.char(color)
@@ -175,6 +182,7 @@ class CanvasService(
             end
             redis.call('PUBLISH', ARGV[8], table.concat(parts))
 
+            if ARGV[9] == '1' then return { 0, 0, n } end
             return { stock, regen - ((now - lastRefillAt) % regen), n }
         """.trimIndent()
 

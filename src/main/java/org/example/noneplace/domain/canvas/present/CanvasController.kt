@@ -146,7 +146,7 @@ class CanvasController(
     ): ResponseEntity<Map<String, Any>> {
         val user = userService.resolve(authorization) ?: return unauthorized()
         val cells = request.pixels.map { it.x to it.y }
-        val maxCells = pixelStockService.tierOf(user).maxStock
+        val maxCells = pixelStockService.maxBatch(user)
         when {
             cells.isEmpty() -> return ResponseEntity.badRequest().body(mapOf("error" to "No pixels"))
             cells.size > maxCells -> return ResponseEntity.badRequest().body(mapOf("error" to "Too many pixels", "max" to maxCells))

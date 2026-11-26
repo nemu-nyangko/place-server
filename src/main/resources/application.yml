@@ -28,6 +28,8 @@ auth:
   member-token-ttl-days: 30
   guest-token-ttl-days: 365
   guest-issue-per-ip-per-minute: 300
+  # 관리자 DataGSM 계정 id (쉼표 구분). 관리자는 픽셀 무제한
+  admin-ids: ${ADMIN_IDS:}
   datagsm:
     client-id: ${DATAGSM_CLIENT_ID:}
     client-secret: ${DATAGSM_CLIENT_SECRET:}

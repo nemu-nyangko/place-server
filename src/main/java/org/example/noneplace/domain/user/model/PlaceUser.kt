@@ -13,8 +13,11 @@ data class PlaceUser(
     val grade: Int? = null,
     val classNum: Int? = null,
     val number: Int? = null,
+    /** 관리자(픽셀 무제한). 토큰이 아니라 서버 설정(auth.admin-ids)으로 요청마다 정해진다 */
+    val admin: Boolean = false,
 ) {
     val isMember: Boolean get() = type == UserType.MEMBER
+    val isAdmin: Boolean get() = admin && isMember
 
     /** 캔버스 픽셀 정보에 노출되는 이름 */
     val displayName: String get() = if (isMember) name ?: "회원" else "게스트"

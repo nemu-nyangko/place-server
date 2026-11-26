@@ -58,6 +58,7 @@ class AuthController(
                 "grade" to user.grade,
                 "classNum" to user.classNum,
                 "number" to user.number,
+                "admin" to user.isAdmin,
                 "canAiRetouch" to user.isMember,
                 "aiAvailable" to (aiRetouchService != null),
                 "loginAvailable" to oAuthService.enabled,

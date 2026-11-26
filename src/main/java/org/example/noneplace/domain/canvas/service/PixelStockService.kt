@@ -23,12 +23,16 @@ class PixelStockService(
         if (user.isMember) properties.member else properties.guest
 
     /** 스톡이 가득 차는 시간만큼 TTL 을 두어 그만둔 유저 키를 자동 정리한다. */
+    /** 한 번에 찍을 수 있는 최대 칸 수 (편집 모드). 관리자는 [ADMIN_BATCH] */
+    fun maxBatch(user: PlaceUser): Int = if (user.isAdmin) ADMIN_BATCH else tierOf(user).maxStock
+
     fun ttlSeconds(tier: CanvasProperties.Tier): Long = tier.maxStock * tier.regenSeconds
 
     fun stockKey(userId: String) = "pixel-stock:$userId"
 
     /** 현재 스톡 상태 조회(차감 없음, Redis 쓰기 없음). */
     suspend fun getStock(user: PlaceUser): PixelStock {
+        if (user.isAdmin) return PixelStock.unlimited()
         val tier = tierOf(user)
         val now = Instant.now().epochSecond
         val hash = stringRedisTemplate.opsForHash<String, String>()
@@ -53,6 +57,10 @@ class PixelStockService(
         }
         return PixelStock(stock, tier.maxStock, tier.regenSeconds, secondsUntilNext, consumed = false)
     }
+
+    companion object {
+        const val ADMIN_BATCH = 1000
+    }
 }
 
 /** 픽셀 스톡 상태. [consumed] 는 픽셀 찍기 시 실제 차감 여부. */
@@ -62,11 +70,20 @@ data class PixelStock(
     val regenSeconds: Long,
     val secondsUntilNextCharge: Long,
     val consumed: Boolean,
+    /** 관리자: 스톡을 쓰지 않는다. stock/maxStock 은 한 번에 찍을 수 있는 최대 칸 수 */
+    val unlimited: Boolean = false,
 ) {
     fun toMap(): Map<String, Any> = mapOf(
         "stock" to stock,
         "maxStock" to maxStock,
         "regenSeconds" to regenSeconds,
         "secondsUntilNextCharge" to secondsUntilNextCharge,
+        "unlimited" to unlimited,
     )
+
+    companion object {
+        fun unlimited(consumed: Boolean = false) = PixelStock(
+            PixelStockService.ADMIN_BATCH, PixelStockService.ADMIN_BATCH, 1, 0, consumed, unlimited = true,
+        )
+    }
 }

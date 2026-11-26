@@ -28,6 +28,10 @@ QR로 들어오면 바로 게스트로 참여할 수 있고, DataGSM으로 로�
 | 회원 (`MEMBER`) | DataGSM 로그인 | `m:<DataGSM 계정 id>` | 최대 30개, 15초마다 1개 충전 | 10분 쿨타임 |
 
 - 수치는 `application.yml`의 `canvas.guest`, `canvas.member`, `canvas.ai-retouch-cooldown-seconds`로 조정합니다.
+- **관리자**: `ADMIN_IDS`(DataGSM 계정 id, 쉼표 구분)에 있는 회원. 이름은 겹칠 수 있어 id로만 지정합니다. 토큰이 아니라 요청마다 서버 설정으로 판정하므로, 설정을 바꾸고 재시작하면 바로 반영됩니다(재로그인 불필요).
+  - 픽셀 무제한: 스톡을 읽지도 줄이지도 않습니다. 편집 모드로 한 번에 최대 1000칸.
+  - `/api/auth/me`에 `admin: true`, 스톡 응답에 `unlimited: true`(이때 `stock`/`maxStock`은 한 번에 찍을 수 있는 칸 수).
+  - 현재 관리자: 계정 id 16 (김동현).
 - 게스트 토큰 남발을 막기 위해 IP(`X-Forwarded-For` 첫 값) 단위 제한이 있습니다.
   - 게스트 토큰 발급: IP당 분당 300회 (`auth.guest-issue-per-ip-per-minute`)
   - 게스트 픽셀: IP당 분당 1200개 (`canvas.guest-pixels-per-ip-per-minute`)

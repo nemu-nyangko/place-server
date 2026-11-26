@@ -10,6 +10,8 @@ data class AuthProperties(
     val guestTokenTtlDays: Long = 365,
     /** 한 IP 에서 1분 동안 발급 가능한 게스트 토큰 수 */
     val guestIssuePerIpPerMinute: Long = 300,
+    /** 관리자 DataGSM 계정 id 목록 (ADMIN_IDS=16,23). 관리자는 픽셀 무제한 */
+    val adminIds: List<String> = emptyList(),
     val datagsm: DataGsm,
 ) {
     data class DataGsm(
