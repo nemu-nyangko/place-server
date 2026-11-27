@@ -14,7 +14,8 @@ class CorsConfig(
     override fun addCorsMappings(registry: CorsRegistry) {
         registry.addMapping("/api/**")
             .allowedOrigins(*allowedOrigins.toTypedArray())
-            .allowedMethods("GET", "POST", "OPTIONS")
+            // PUT·DELETE: 관리자 지정/해제 (/api/admin/admins/{id})
+            .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
             .allowedHeaders("Content-Type", "Authorization")
             .maxAge(3600)
     }

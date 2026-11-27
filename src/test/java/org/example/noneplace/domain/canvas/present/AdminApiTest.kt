@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Import
 import org.springframework.test.web.reactive.server.WebTestClient
 
 /** 관리자 화면 API: 로그인 계정 목록, 관리자 지정/해제 */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = ["auth.admin-ids=8146"])
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = ["auth.admin-ids=8146", "cors.allowed-origins=https://g-place.example.com"])
 @Import(TestRedisConfig::class)
 @AutoConfigureWebTestClient
 class AdminApiTest {
@@ -90,5 +90,19 @@ class AdminApiTest {
         me(guest).expectStatus().isOk
         webTestClient.get().uri("/api/admin/accounts").header("Authorization", "Bearer ${token("8146", "김동현")}").exchange()
             .expectBody().jsonPath("$.accounts[?(@.accountId=~/g:.*/)]").isEmpty
+    }
+
+    @Test
+    fun `다른 출처 브라우저에서도 관리자 지정·해제 사전 요청(CORS)이 통과한다`() {
+        for (method in listOf("PUT", "DELETE")) {
+            webTestClient.options().uri("http://api.example.com/api/admin/admins/8200") // 호스트가 있어야 출처 비교가 된다
+                .header("Origin", "https://g-place.example.com")
+                .header("Access-Control-Request-Method", method)
+                .header("Access-Control-Request-Headers", "authorization")
+                .exchange()
+                .expectStatus().isOk
+                .expectHeader().valueEquals("Access-Control-Allow-Origin", "https://g-place.example.com")
+                .expectHeader().value("Access-Control-Allow-Methods") { assert(method in it) { "$method not in $it" } }
+        }
     }
 }
